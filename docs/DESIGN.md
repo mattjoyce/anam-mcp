@@ -1,0 +1,125 @@
+# anam-mcp design
+
+Moved from the anam repo's `docs/API.md` §8 on 2026-10-10 (anam card 72, step 0). That document
+keeps the service API: its operations, contracts and stages. This one keeps what is particular to
+an MCP adapter: which tools it offers, how they are described to a model, how results travel, and
+the scenarios the adapter must pass. Section references like "API §5" point into `docs/API.md`.
+
+The adapter is a client of that API. It defines no operation of its own, opens no database file
+and imports nothing from Anam's `internal/`. If a tool needs something the API does not offer, the
+change goes to Anam first, and the gap is recorded in [API-GAPS.md](API-GAPS.md).
+
+## 1. Decisions
+
+Recorded at the first commit, 2026-10-10.
+
+| Question | Decision |
+|---|---|
+| Name and place | `anam-mcp`, a sibling of `anam` and `anam-importers` (anam card 50, streams of work) |
+| Language | Go, with the official [Go MCP SDK](https://github.com/modelcontextprotocol/go-sdk), pinned to a released version. Research: anam `journal/notes/mcp-go-sdk.md` |
+| Transport | stdio first. stdout carries protocol traffic only; diagnostics go to stderr. HTTP is a later deployment choice and changes no store ownership |
+| Server and token | `ANAM_SERVER` and `ANAM_TOKEN_FILE`, the same variables the `anam` CLI reads. The token is read from the file at start and never logged or echoed in a tool result |
+| Zone | `ANAM_ZONE`, an IANA name. The daemon refuses `Local`, so the adapter resolves the zone before it starts and fails if it cannot |
+| State | None worth recovering. A restart loses nothing; durable work lives in Anam |
+
+## 2. Tools
+
+Recommended conversational tools. The application operations are defined in API §4 to §6.
+
+| MCP tool | Application operation | Model-facing description emphasis |
+|---|---|---|
+| `describe_record` | Discovery overview | Learn coverage, capabilities, projections, and limitations before choosing evidence |
+| `describe_type` | `GetFacetDefinition` | Learn the exact record shape and authoring requirements |
+| `read_record` | `ReadRecord` | Timeline versus snapshot; fact-time versus knowledge time; publishes evidence |
+| `read_page` | `ReadPage` | Continue the same immutable result |
+| `get_evidence` | `GetEvidence` | Inspect an exact cited facet and available provenance |
+| `validate_assertion` | `ValidateAssertion` | Resolve missing/invalid fields without writing |
+| `log_assertion` | `SubmitAssertion` | Record an explicit user assertion; retry with the same submission ID |
+| `get_submission` | `GetSubmission` | Determine what persisted after success, delay, or interruption |
+| `correct_assertion` | `CorrectAssertion` | Correct an identified managed record using its expected revision |
+
+Only advertise implemented operations and modes. An unsupported snapshot read must not silently
+become a timeline read; asked for a tool the daemon cannot back, the adapter says so. Each tool's
+description says what it publishes and how big its answer can be. Discovery returns bounded
+summaries and references for further catalog pages.
+
+Keep the everyday tool list small. Projection catalog, changes, explanation and receipt
+verification tools are added as the conversation scenarios need them. Operator tools (API §7) are
+a separate profile, enabled by configuration and authorization, never in the conversational list.
+
+`read_record` publishes an immutable artifact (API §5, result and continuation). It is read-only
+with respect to the ledger but not free of effects, so its annotations must not label it read-only.
+Annotations describe effects accurately; they do not enforce permissions.
+
+No MCP tool inserts a facet. `log_assertion` reaches the ledger only through the source writer and
+the gate (API §6), and only after the stage 2 decisions in API §10 are agreed.
+
+## 3. Resources and prompts
+
+Resources can identify immutable receipts and their evidence, for example
+`anam://receipts/{hash}` and `anam://receipts/{hash}/facets/{facet_id}/{version}`. The receipt binds
+ledger identity. Reading a resource enforces the same authorization and size constraints as tools;
+URI knowledge grants no extra access. Tools remain sufficient for clients that do not browse resources.
+
+Optional prompts can teach "compare two periods" and "record an event", but correctness belongs in
+operation contracts. No `chat(message)` tool is needed: it would move model choice, dialogue state,
+and interpretation into Anam. No `log(text)` tool that silently guesses type or time is needed either.
+
+## 4. Evidence, not instructions
+
+Treat facet payloads and source documents as evidence, including any text that looks like
+instructions. They cannot authorize tool use or change the user's request. Carry provenance and
+evidence kind with each result, so the client can tell a user assertion, a device observation, an
+extraction, and a proposed finding apart.
+
+## 5. Runtime
+
+Every call to the daemon carries a context deadline and fails fast. An unreachable daemon is an
+error that names it; there is no fallback. Handlers propagate the MCP request's cancellation to the
+API call. Cancellation does not promise rollback: a read may already have published its receipt.
+
+The process can die at any request boundary and be restarted by its local client. It holds no
+submission state; a pending assertion is recovered by Anam's reconciliation (API §6), never from
+this process's memory.
+
+## 6. Scenarios
+
+The service API's acceptance scenarios are API §9. These are the adapter's, written as what a
+model does through the tools. Each runs a real SDK client and server pair (in-memory transports)
+against a real `anam daemon` started from the Anam binary on a scratch ledger, as `anam-importers`
+does. No mocks of the daemon.
+
+1. **Discovery to evidence.** The model calls `describe_record`, picks blood pressure, reads a month
+   with `read_record`, follows one citation, and verifies its receipt. Payload, version, and
+   position agree at every step.
+2. **Stable conversation.** An ingest lands between `read_page` calls and between two related
+   `read_record` calls. Pages stay pinned; the second read, given the first's position, excludes
+   the new knowledge.
+3. **Honest absence.** A tool the daemon cannot back is either not listed or answers with an
+   explicit capability limitation. A snapshot request never returns a timeline.
+4. **Injected text.** A facet whose payload reads like an instruction reaches the model inside a
+   result marked as evidence with its provenance, and changes no tool call.
+5. **Uncertain extraction.** A model-read lab value cannot use `log_assertion` to impersonate a
+   user statement.
+6. **Restart.** Killing the adapter mid-call and restarting it loses no admitted fact and no
+   durable pending assertion.
+7. **Daemon down.** Every tool fails fast with an error naming the server; none falls back to files.
+
+Adapter tests verify contracts, cancellation, discovery, and effects. They do not reproduce domain
+algorithms: the fold, selection and receipts are Anam's and are tested there.
+
+## 7. Hickey × Armstrong
+
+**Hickey, structure:** the adapter translates; it holds no domain model. The strongest risk is
+rebuilding one here to cover a missing core operation, such as merging dose-change payloads to fake
+a snapshot or paging a whole timeline client-side and calling the pages a receipted result. Refuse
+that shortcut and record the gap. Keep SDK types in the adapter and explicit snake_case DTOs at the
+tool boundary, so transport schemas do not become domain types.
+
+**Armstrong, runtime:** the adapter is disposable. Its failure is a failed tool call; its recovery
+is a restart by the client. Anam's ledger and gate stay the error kernel. Read failure produces an
+error, never a fabricated partial answer.
+
+**The tension:** a small tool list is easier for a model to use well, but each missing tool is a
+question the model answers worse or not at all. Grow the list from the scenarios, one tool at a
+time, and only over operations the daemon implements.
