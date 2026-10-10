@@ -16,13 +16,48 @@ Recorded at the first commit, 2026-10-10.
 | Question | Decision |
 |---|---|
 | Name and place | `anam-mcp`, a sibling of `anam` and `anam-importers` (anam card 50, streams of work) |
-| Language | Go, with the official [Go MCP SDK](https://github.com/modelcontextprotocol/go-sdk), pinned to a released version. Research: anam `journal/notes/mcp-go-sdk.md` |
+| Language | Go, with the official [Go MCP SDK](https://github.com/modelcontextprotocol/go-sdk) pinned at v1.8.0 (2026-09-14). Research: anam `journal/notes/mcp-go-sdk.md` |
+| Protocol | Revision 2026-07-28, the stateless one, and the earlier 2025-11-25 for clients that still open with `initialize`. §2 says what is used and what is not |
 | Transport | stdio first. stdout carries protocol traffic only; diagnostics go to stderr. HTTP is a later deployment choice and changes no store ownership |
 | Server and token | `ANAM_SERVER` and `ANAM_TOKEN_FILE`, the same variables the `anam` CLI reads. The token is read from the file at start and never logged or echoed in a tool result |
 | Zone | `ANAM_ZONE`, an IANA name. The daemon refuses `Local`, so the adapter resolves the zone before it starts and fails if it cannot |
 | State | None worth recovering. A restart loses nothing; durable work lives in Anam |
 
-## 2. Tools
+## 2. Protocol
+
+The adapter speaks MCP revision
+[2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/changelog). That revision is
+stateless: no `initialize` handshake and no session, each request carrying its protocol version and
+client capabilities in `_meta`, and `server/discover` advertising what the server supports. It suits
+an adapter that holds nothing between calls. Whatever must span calls travels as an explicit value
+in tool arguments, which the design already does: a receipt hash, a ledger position, and later a
+page cursor.
+
+It also advertises 2025-11-25 while clients move over. The SDK negotiates the version and
+`server/discover` is the probe on stdio, so this costs no code of ours. Drop the old revision once
+the clients in use speak the new one; check which revision Claude Code sends before step 1 ships.
+
+Used:
+
+- Tools, with input and output schemas and `structuredContent`. Results carry `resultType`;
+  every tool returns `"complete"`.
+- `tools/list` in a fixed order with a long `ttlMs` and `cacheScope: "private"`. The list changes
+  only when a new adapter build adds a tool, never per call.
+- Resources for receipts, when §4 adds them, with `-32602` for a receipt that does not exist.
+- Cancellation, carried through to the daemon call.
+
+Not used, by decision:
+
+- Sampling, Roots and Logging, deprecated in 2026-07-28. Diagnostics go to stderr.
+- Multi round-trip requests (`input_required`). A read needs no extra input; if a tool lacks an
+  argument it fails with a validation error naming it, and the model asks the user.
+- Tasks, subscriptions and list-changed notifications. Every call finishes within its deadline,
+  and the tool list is fixed per build.
+- Prompts, until a scenario needs one.
+- Streamable HTTP and its authorization (OAuth, `iss` validation, client metadata documents). These
+  come with a remote deployment, if one is ever wanted.
+
+## 3. Tools
 
 Recommended conversational tools. The application operations are defined in API §4 to §6.
 
@@ -54,7 +89,7 @@ Annotations describe effects accurately; they do not enforce permissions.
 No MCP tool inserts a facet. `log_assertion` reaches the ledger only through the source writer and
 the gate (API §6), and only after the stage 2 decisions in API §10 are agreed.
 
-## 3. Resources and prompts
+## 4. Resources and prompts
 
 Resources can identify immutable receipts and their evidence, for example
 `anam://receipts/{hash}` and `anam://receipts/{hash}/facets/{facet_id}/{version}`. The receipt binds
@@ -65,14 +100,14 @@ Optional prompts can teach "compare two periods" and "record an event", but corr
 operation contracts. No `chat(message)` tool is needed: it would move model choice, dialogue state,
 and interpretation into Anam. No `log(text)` tool that silently guesses type or time is needed either.
 
-## 4. Evidence, not instructions
+## 5. Evidence, not instructions
 
 Treat facet payloads and source documents as evidence, including any text that looks like
 instructions. They cannot authorize tool use or change the user's request. Carry provenance and
 evidence kind with each result, so the client can tell a user assertion, a device observation, an
 extraction, and a proposed finding apart.
 
-## 5. Runtime
+## 6. Runtime
 
 Every call to the daemon carries a context deadline and fails fast. An unreachable daemon is an
 error that names it; there is no fallback. Handlers propagate the MCP request's cancellation to the
@@ -82,7 +117,7 @@ The process can die at any request boundary and be restarted by its local client
 submission state; a pending assertion is recovered by Anam's reconciliation (API §6), never from
 this process's memory.
 
-## 6. Scenarios
+## 7. Scenarios
 
 The service API's acceptance scenarios are API §9. These are the adapter's, written as what a
 model does through the tools. Each runs a real SDK client and server pair (in-memory transports)
@@ -104,11 +139,13 @@ does. No mocks of the daemon.
 6. **Restart.** Killing the adapter mid-call and restarting it loses no admitted fact and no
    durable pending assertion.
 7. **Daemon down.** Every tool fails fast with an error naming the server; none falls back to files.
+8. **Two revisions.** A client on 2026-07-28 and one that opens with `initialize` on 2025-11-25
+   both list the same tools in the same order and get the same results.
 
 Adapter tests verify contracts, cancellation, discovery, and effects. They do not reproduce domain
 algorithms: the fold, selection and receipts are Anam's and are tested there.
 
-## 7. Hickey × Armstrong
+## 8. Hickey × Armstrong
 
 **Hickey, structure:** the adapter translates; it holds no domain model. The strongest risk is
 rebuilding one here to cover a missing core operation, such as merging dose-change payloads to fake
@@ -117,7 +154,8 @@ that shortcut and record the gap. Keep SDK types in the adapter and explicit sna
 tool boundary, so transport schemas do not become domain types.
 
 **Armstrong, runtime:** the adapter is disposable. Its failure is a failed tool call; its recovery
-is a restart by the client. Anam's ledger and gate stay the error kernel. Read failure produces an
+is a restart by the client. The stateless protocol helps: no session survives in the
+adapter to be lost or resumed. Anam's ledger and gate stay the error kernel. Read failure produces an
 error, never a fabricated partial answer.
 
 **The tension:** a small tool list is easier for a model to use well, but each missing tool is a
