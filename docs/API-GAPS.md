@@ -4,14 +4,17 @@ What the adapter needs from Anam's service API and does not have. Each gap is a 
 first, filed as a card on Anam's board, then adopted here. The adapter does not work around a gap
 by doing the core's job.
 
-Checked against the live daemon (v0.220) on 2026-10-10. Ordered by how much each blocks the goal:
-answers a person can check.
+Checked against the live daemon (v0.220) on 2026-10-10, and against master a452f18 on 2026-10-11
+when the first tools were built. Ordered by how much each blocks the goal: answers a person can
+check.
 
 | Gap | Today | Blocks | Anam card |
 |---|---|---|---|
-| A receipted read over the API | `GET /v1/timeline` derives a value and its hash but publishes nothing; receipts come only from a local `anam serve` | Citing an answer and verifying it later (scenario 1) | 87 |
-| A read pinned to a ledger position | Knowledge is selected by `as_of`, an anam-time instant, not by `w` | Two related reads seeing the same knowledge (scenario 2) | 87 |
-| A bound on a read's size | A whole-record read is 12.8 MB, a snapshot of everything 11.5 MB, with no limit or `result_too_large` | Safe reads without the adapter refusing broad queries itself | 88 |
+| ~~A receipted read over the API~~ | Done (card 87): `POST /v1/receipts` publishes the read a projection serves. Adopted by `read_record` | | 87 |
+| ~~A read pinned to a ledger position~~ | Done (card 87): `w` reads at a receipt's watermark. Adopted as `read_record`'s `watermark` | | 87 |
+| ~~A bound on a read's size~~ | Done (card 88): 413 `result_too_large` with what to narrow by. Passed through as the tool's error | | 88 |
+| A receipt without a projection | A read of the canonical, or of one type without a projection, cannot be published: the daemon publishes only what a projection served, and names none the model could pick (card 90) | Citing a read that names no projection; today `read_record` answers it unreceipted and says so | 90 |
+| Evidence kind per facet | An entry carries `source`, `source_ref`, `status` and `classification`, but nothing says whether it is a device observation, a person's own assertion or an extraction | Telling a user assertion from an extraction in a result (design §5); the adapter must not infer it from the source name | 93 |
 | A reader-only token | The operator token also starts ingests, mints and backups | Least privilege for a conversational client | 89 |
 | Discovery: projections and coverage | No route lists projections (`bp`, `meds`, `sleep` are bundled); no counts or date ranges per type | `describe_record` saying what is there and how far back | 90 |
 | One facet by reference | No route returns a facet version by id with its provenance | `get_evidence` | 91 |

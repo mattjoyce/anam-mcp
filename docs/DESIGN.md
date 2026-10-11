@@ -23,6 +23,18 @@ Recorded at the first commit, 2026-10-10.
 | Zone | `ANAM_ZONE`, an IANA name. The daemon refuses `Local`, so the adapter resolves the zone before it starts and fails if it cannot |
 | State | None worth recovering. A restart loses nothing; durable work lives in Anam |
 
+Added at the first code commit, 2026-10-11, made without Matt (he asked for sensible calls, noted):
+
+| Question | Decision |
+|---|---|
+| A read without a projection | The daemon publishes only through a projection (a receipt is what a projection served), and it lists none (gap, card 90). `read_record` therefore publishes when a `projection` is named and otherwise answers the canonical timeline unreceipted, saying so in `published: false` and a `citation` line. It never substitutes one read for another |
+| Snapshot and timeline | One tool, `read_record`, with a required `mode`. A snapshot needs `at`; a timeline refuses it. The adapter checks the pairing before the call, because the daemon would read a timeline for both, and a snapshot must never silently become one |
+| Payloads at the boundary | Payloads and Definitions travel as decoded JSON (`any`), not raw bytes: the SDK infers an output schema from the Go type, and raw bytes would be described as a base64 string. The daemon's bytes are not re-encoded on the way |
+| Deadline | `ANAM_MCP_TIMEOUT`, default 30s, sent to the daemon as `Anam-Timeout` so it answers before the adapter gives up. The MCP request's cancellation is carried into the call |
+| Tests without a daemon | `ANAM_BIN` names the anam binary; `scripts/check.sh` builds one from `../anam` when unset. A plain `go test` without it skips the daemon tests and says so, rather than failing a checkout that has no Anam beside it |
+| Tool list caching | The SDK (v1.8.0) answers `tools/list` with `ttlMs: 0`, `cacheScope: public` and offers no setting for them. The long private TTL in §2 waits on the SDK |
+| Receipt URIs | `anam://receipts/{+hash}`: a hash is `sha256:<hex>`, and the reserved expansion is what lets the colon match |
+
 ## 2. Protocol
 
 The adapter speaks MCP revision
@@ -77,6 +89,10 @@ Only advertise implemented operations and modes. An unsupported snapshot read mu
 become a timeline read; asked for a tool the daemon cannot back, the adapter says so. Each tool's
 description says what it publishes and how big its answer can be. Discovery returns bounded
 summaries and references for further catalog pages.
+
+Built, 2026-10-11: `describe_record`, `describe_type`, `read_record` (timeline and snapshot, `as_of`,
+`watermark`, published through a projection) and `verify_receipt`, with the receipt resource of
+§4. The rest wait on their daemon operations (API-GAPS.md).
 
 Keep the everyday tool list small. Projection catalog, changes, explanation and receipt
 verification tools are added as the conversation scenarios need them. Operator tools (API §7) are
@@ -141,6 +157,9 @@ does. No mocks of the daemon.
 7. **Daemon down.** Every tool fails fast with an error naming the server; none falls back to files.
 8. **Two revisions.** A client on 2026-07-28 and one that opens with `initialize` on 2025-11-25
    both list the same tools in the same order and get the same results.
+
+Status, 2026-10-11: 1, 2, 3, 4, 7 and 8 run in `internal/adapter/adapter_test.go`. 5 waits on
+writes; 6 waits on a pending assertion to lose, and until then a restart is the trivial case.
 
 Adapter tests verify contracts, cancellation, discovery, and effects. They do not reproduce domain
 algorithms: the fold, selection and receipts are Anam's and are tested there.
