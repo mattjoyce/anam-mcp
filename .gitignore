@@ -1,0 +1,17 @@
+# Binaries
+/anam-mcp
+/dist/
+
+# Go build/test artifacts
+*.test
+*.out
+/coverage.*
+
+# Local config / secrets: the token file never lives here
+*.token
+*.local.yaml
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
