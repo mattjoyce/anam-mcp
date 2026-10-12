@@ -82,6 +82,7 @@ var capabilities = []string{
 	"as_of: what the record knew at an earlier anam-time",
 	"watermark: a read pinned to a ledger position a receipt names, so two reads see the same knowledge",
 	"projection: a read through a named projection, published with a receipt",
+	"fields: a read answered as a frame of only the payload fields named, JSON pointers from describe_type, a fraction of the size",
 	"verify: a receipt checked against the ledger and the stored artifact",
 }
 

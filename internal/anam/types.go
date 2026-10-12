@@ -71,6 +71,9 @@ type TimelineQuery struct {
 	Type       string
 	Projection string
 	Zone       string
+	// Fields names the payload fields wanted, as JSON pointers into the type's
+	// schema (anam card 138). With any, the daemon answers a Frame.
+	Fields []string
 }
 
 // Timeline is one read of the person: what it was read at and through, the hashes
@@ -86,6 +89,17 @@ type Timeline struct {
 	Projection *ProjectionRead `json:"projection,omitempty"`
 	Entries    []Entry         `json:"entries,omitempty"`
 	Versions   map[string]int  `json:"versions,omitempty"`
+	// Frame is the answer when the query named fields: Entries is then empty.
+	Frame *Frame `json:"frame,omitempty"`
+}
+
+// Frame is a read cut to its fields: columns, the envelope's attributes
+// (facet_id, type, fact_time, source, status, classification, content_hash) then
+// the pointers, and one row per facet in timeline order. A cell is the value's own
+// JSON; a pointer a row lacks is null.
+type Frame struct {
+	Columns []string            `json:"columns"`
+	Rows    [][]json.RawMessage `json:"rows"`
 }
 
 // ProjectionRead names the projection a read went through and what came out of it.
@@ -135,10 +149,11 @@ type Receipt struct {
 
 // ReceiptQuery is how a read narrowed the template's value, resolved to instants.
 type ReceiptQuery struct {
-	From   string `json:"from,omitempty"`
-	Before string `json:"before,omitempty"`
-	At     string `json:"at,omitempty"`
-	Type   string `json:"type,omitempty"`
+	From   string   `json:"from,omitempty"`
+	Before string   `json:"before,omitempty"`
+	At     string   `json:"at,omitempty"`
+	Type   string   `json:"type,omitempty"`
+	Fields []string `json:"fields,omitempty"`
 }
 
 // ReceiptShown is a receipt and the served value it names (GET /v1/receipts/{hash}).
@@ -146,6 +161,7 @@ type ReceiptShown struct {
 	Hash    string  `json:"hash"`
 	Receipt Receipt `json:"receipt"`
 	Entries []Entry `json:"entries"`
+	Frame   *Frame  `json:"frame,omitempty"`
 }
 
 // ReceiptVerified is a receipt and the two proofs of it (GET /v1/receipts/{hash}/verify).

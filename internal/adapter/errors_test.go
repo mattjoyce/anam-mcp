@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -81,7 +82,14 @@ func TestQuery(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := anam.TimelineQuery{At: "2026-06-15", Type: "health.blood-pressure", Projection: "bp", W: 7, Zone: "Australia/Sydney"}
-	if q != want {
+	if !reflect.DeepEqual(q, want) {
 		t.Errorf("query = %+v, want %+v", q, want)
+	}
+	if _, err := a.query(ReadInput{Mode: "timeline", Fields: []string{"pulse"}}); err == nil || !strings.Contains(err.Error(), "JSON pointer") {
+		t.Errorf("a field without a slash: %v", err)
+	}
+	q, err = a.query(ReadInput{Mode: "timeline", Type: "health.blood-pressure", Fields: []string{"/pulse", "/systolic_blood_pressure/value"}})
+	if err != nil || strings.Join(q.Fields, " ") != "/pulse /systolic_blood_pressure/value" {
+		t.Errorf("fields = %v, %v", q.Fields, err)
 	}
 }

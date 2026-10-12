@@ -218,5 +218,8 @@ func (q TimelineQuery) values() url.Values {
 	if q.W != 0 {
 		v.Set("w", strconv.FormatInt(q.W, 10))
 	}
+	for _, f := range q.Fields {
+		v.Add("fields", f)
+	}
 	return v
 }
