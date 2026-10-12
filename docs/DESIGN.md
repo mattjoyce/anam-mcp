@@ -31,6 +31,7 @@ Added at the first code commit, 2026-10-11, made without Matt (he asked for sens
 | Snapshot and timeline | One tool, `read_record`, with a required `mode`. A snapshot needs `at`; a timeline refuses it. The adapter checks the pairing before the call, because the daemon would read a timeline for both, and a snapshot must never silently become one |
 | Payloads at the boundary | Payloads and Definitions travel as decoded JSON (`any`), not raw bytes: the SDK infers an output schema from the Go type, and raw bytes would be described as a base64 string. The daemon's bytes are not re-encoded on the way |
 | Deadline | `ANAM_MCP_TIMEOUT`, default 30s, sent to the daemon as `Anam-Timeout` so it answers before the adapter gives up. The MCP request's cancellation is carried into the call |
+| Fields and the frame (2026-10-12, anam card 138) | `read_record` takes `fields`, JSON pointers the model copies out of `describe_type`'s schema, and answers `frame` (columns, rows) with `evidence` empty, rather than reshaping the frame into entries: the daemon's shape is the one the receipt hashes, and a frame reads straight into a DataFrame. Cells are decoded like payloads, for the SDK's output schema. The adapter checks only that a field starts with `/`; the daemon checks it against the schema |
 | Tests without a daemon | `ANAM_BIN` names the anam binary; `scripts/check.sh` builds one from `../anam` when unset. A plain `go test` without it skips the daemon tests and says so, rather than failing a checkout that has no Anam beside it |
 | Tool list caching | The SDK (v1.8.0) answers `tools/list` with `ttlMs: 0`, `cacheScope: public` and offers no setting for them. The long private TTL in §2 waits on the SDK |
 | Receipt URIs | `anam://receipts/{+hash}`: a hash is `sha256:<hex>`, and the reserved expansion is what lets the colon match |
@@ -92,7 +93,8 @@ summaries and references for further catalog pages.
 
 Built, 2026-10-11: `describe_record`, `describe_type`, `read_record` (timeline and snapshot, `as_of`,
 `watermark`, published through a projection) and `verify_receipt`, with the receipt resource of
-§4. The rest wait on their daemon operations (API-GAPS.md).
+§4. 2026-10-12: `read_record` takes `fields` and answers a frame (anam card 138). The rest wait on
+their daemon operations (API-GAPS.md).
 
 Keep the everyday tool list small. Projection catalog, changes, explanation and receipt
 verification tools are added as the conversation scenarios need them. Operator tools (API §7) are
