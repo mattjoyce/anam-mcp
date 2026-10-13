@@ -53,6 +53,23 @@ claude mcp add anam -e ANAM_SERVER=http://127.0.0.1:8787 -e ANAM_TOKEN_FILE=$HOM
 ./scripts/check.sh
 ```
 
-The tests run a real `anam daemon` on a scratch ledger. `ANAM_BIN` names the binary; unset,
-`scripts/check.sh` builds one from the sibling checkout at `../anam` (or `ANAM_SRC`). Without
-either, the tests that need a daemon are skipped and say so.
+The tests run a real `anam daemon` on a scratch ledger, so they need an `anam` binary. Get one
+from the public anam repo:
+
+```sh
+go install github.com/mattjoyce/anam/cmd/anam@latest
+ANAM_BIN="$(go env GOPATH)/bin/anam" ./scripts/check.sh
+```
+
+`ANAM_BIN` names the binary; unset, `scripts/check.sh` builds one from a sibling checkout at
+`../anam` (or `ANAM_SRC`). Without either, the tests that need a daemon are skipped and say so.
+A secrets scan of the history runs as a tool, not a dependency, with the repo's own allowlist
+for the README's token-file examples:
+
+```sh
+docker run --rm -v "$PWD:/repo:ro" zricethezav/gitleaks:latest git --config /repo/.gitleaks.toml /repo
+```
+
+## Licence
+
+Apache-2.0; see `LICENSE` and `NOTICE`.

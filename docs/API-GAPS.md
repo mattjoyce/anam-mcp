@@ -2,7 +2,9 @@
 
 What the adapter needs from Anam's service API and does not have. Each gap is a change to Anam
 first, filed as a card on Anam's board, then adopted here. The adapter does not work around a gap
-by doing the core's job.
+by doing the core's job. This is the adapter's design backlog against an API that is still growing,
+not a list of defects in a running service; everything here is a read the adapter cannot yet make,
+never a way in that it should not have.
 
 Checked against the live daemon (v0.220) on 2026-10-10, and against master a452f18 on 2026-10-11
 when the first tools were built. Ordered by how much each blocks the goal: answers a person can

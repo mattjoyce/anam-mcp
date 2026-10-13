@@ -1,0 +1,10 @@
+# gitleaks configuration (card 144). The README's examples name a token *file*
+# beside the zone, which the generic-api-key rule reads as "token=<value>"; the
+# value is a path and a zone, not a secret.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "README examples: a token file path and an IANA zone, not a key"
+regexTarget = "line"
+regexes = ['''ANAM_TOKEN_FILE=\S+ (-e )?ANAM_ZONE=''']
