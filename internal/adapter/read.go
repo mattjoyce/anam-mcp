@@ -33,7 +33,7 @@ var readRecordTool = &mcp.Tool{
 type ReadInput struct {
 	Mode       string   `json:"mode" jsonschema:"timeline or snapshot"`
 	Type       string   `json:"type,omitempty" jsonschema:"narrow to one facet type, such as health.blood-pressure"`
-	Projection string   `json:"projection,omitempty" jsonschema:"read through this projection and publish the read with a receipt; omit for an unreceipted read of everything"`
+	Projection string   `json:"projection,omitempty" jsonschema:"read through this projection, one of the names describe_record lists, and publish the read with a receipt; omit for an unreceipted read of everything"`
 	From       string   `json:"from,omitempty" jsonschema:"timeline only: fact-times at or after this date (2006-01-02) or instant (RFC 3339)"`
 	To         string   `json:"to,omitempty" jsonschema:"timeline only: fact-times at or before this instant; a bare date includes its whole day"`
 	At         string   `json:"at,omitempty" jsonschema:"snapshot only, required: the fact-time the snapshot is taken at, a date or an instant"`

@@ -14,9 +14,9 @@ var describeRecordTool = &mcp.Tool{
 	Title: "Describe the record",
 	Description: "Learn what the record holds before choosing what to read: whose record it is, its ledger identity and " +
 		"current watermark, the current time and the zone bare dates are read in, which sources the server has seen and " +
-		"when, every facet type it admits with its current definition version, what this server can do, and what it " +
-		"cannot do yet. Call it first. It publishes nothing. Its answer is small: a few hundred bytes plus one line per " +
-		"source and per type.",
+		"when, every facet type it admits with its current definition version, every projection a read may go through " +
+		"(the names read_record takes), what this server can do, and what it cannot do yet. Call it first. It " +
+		"publishes nothing. Its answer is small: a few hundred bytes plus one line per source, per type and per projection.",
 	Annotations: readOnly(),
 }
 
@@ -38,19 +38,20 @@ type DescribeTypeInput struct {
 
 // RecordDescription is what describe_record answers.
 type RecordDescription struct {
-	Person        string            `json:"person" jsonschema:"the person whose record this is, as the server labels them"`
-	LedgerID      string            `json:"ledger_id" jsonschema:"the ledger's identity; a receipt names it, and a watermark means nothing without it"`
-	Watermark     int64             `json:"watermark" jsonschema:"the ledger's current position; a read at this watermark sees exactly this knowledge"`
-	Now           string            `json:"now" jsonschema:"the current instant, RFC 3339 UTC; resolve relative dates against it"`
-	Zone          string            `json:"zone" jsonschema:"the IANA zone a bare date in a read is a day in"`
-	AnamVersion   string            `json:"anam_version" jsonschema:"the server's build"`
-	AdapterVer    string            `json:"adapter_version" jsonschema:"this adapter's build"`
-	ServerSince   string            `json:"server_since,omitempty" jsonschema:"when the server started; source freshness below covers only what it has seen since"`
-	Sources       []SourceFreshness `json:"sources" jsonschema:"each source the server has read since it started, and when; a quiet source may be current without recent facts"`
-	Types         []TypeSummary     `json:"types" jsonschema:"every facet type the server admits"`
-	Capabilities  []string          `json:"capabilities" jsonschema:"what read_record can do on this server"`
-	Limitations   []string          `json:"limitations" jsonschema:"what this server cannot do yet; do not work around these by other means"`
-	IngestRunning string            `json:"ingest_running,omitempty" jsonschema:"an ingest in progress, if any; the watermark may move"`
+	Person        string              `json:"person" jsonschema:"the person whose record this is, as the server labels them"`
+	LedgerID      string              `json:"ledger_id" jsonschema:"the ledger's identity; a receipt names it, and a watermark means nothing without it"`
+	Watermark     int64               `json:"watermark" jsonschema:"the ledger's current position; a read at this watermark sees exactly this knowledge"`
+	Now           string              `json:"now" jsonschema:"the current instant, RFC 3339 UTC; resolve relative dates against it"`
+	Zone          string              `json:"zone" jsonschema:"the IANA zone a bare date in a read is a day in"`
+	AnamVersion   string              `json:"anam_version" jsonschema:"the server's build"`
+	AdapterVer    string              `json:"adapter_version" jsonschema:"this adapter's build"`
+	ServerSince   string              `json:"server_since,omitempty" jsonschema:"when the server started; source freshness below covers only what it has seen since"`
+	Sources       []SourceFreshness   `json:"sources" jsonschema:"each source the server has read since it started, and when; a quiet source may be current without recent facts"`
+	Types         []TypeSummary       `json:"types" jsonschema:"every facet type the server admits"`
+	Projections   []ProjectionSummary `json:"projections" jsonschema:"every projection a read may go through; read_record's projection takes one of these names"`
+	Capabilities  []string            `json:"capabilities" jsonschema:"what read_record can do on this server"`
+	Limitations   []string            `json:"limitations" jsonschema:"what this server cannot do yet; do not work around these by other means"`
+	IngestRunning string              `json:"ingest_running,omitempty" jsonschema:"an ingest in progress, if any; the watermark may move"`
 }
 
 // SourceFreshness is when a source was last read and last changed the record.
@@ -66,6 +67,18 @@ type TypeSummary struct {
 	Origin         string `json:"origin" jsonschema:"bundled with the server, or registered by an importer"`
 	CurrentVersion int    `json:"current_version"`
 	Versions       []int  `json:"versions" jsonschema:"every Definition version held, oldest first"`
+}
+
+// ProjectionSummary is one projection a read may select: what it serves, its shape,
+// and whether it ships with the server or the operator registered it.
+type ProjectionSummary struct {
+	Name           string   `json:"name"`
+	Origin         string   `json:"origin" jsonschema:"bundled with the server, or registered by the operator"`
+	CurrentVersion int      `json:"current_version" jsonschema:"the version a read goes through"`
+	Versions       []int    `json:"versions" jsonschema:"every version held, oldest first; a receipt names the one that served it"`
+	Description    string   `json:"description" jsonschema:"what the projection is for, in the operator's words"`
+	Types          []string `json:"types" jsonschema:"the facet types it serves; everything else is pruned"`
+	Shape          string   `json:"shape" jsonschema:"log (every surviving facet) or snapshot (the latest per series)"`
 }
 
 // TypeDescription is what describe_type answers: the Definition as published.
@@ -87,7 +100,6 @@ var capabilities = []string{
 }
 
 var limitations = []string{
-	"projections are not listed by the server; the person names one, or the read goes unreceipted",
 	"no counts or date ranges per type: coverage is found by reading, not by discovery",
 	"no paging: a read is answered whole or refused as too large, with what to narrow by",
 	"no single facet by reference: cite a read's receipt and the facet_id within it",
@@ -103,12 +115,17 @@ func (a *Adapter) describeRecord(ctx context.Context, _ *mcp.CallToolRequest, _ 
 	if err != nil {
 		return nil, RecordDescription{}, a.failed("describe_record", err)
 	}
+	projs, err := a.client.Projections(ctx)
+	if err != nil {
+		return nil, RecordDescription{}, a.failed("describe_record", err)
+	}
 	d := RecordDescription{
 		Person: st.Person, LedgerID: st.LedgerID, Watermark: st.W,
 		Now: a.now().UTC().Format(time.RFC3339), Zone: a.zone.String(),
 		AnamVersion: st.Version, AdapterVer: a.version, ServerSince: st.Since,
 		Sources:      make([]SourceFreshness, 0, len(st.Sources)),
 		Types:        make([]TypeSummary, 0, len(defs.Definitions)),
+		Projections:  make([]ProjectionSummary, 0, len(projs.Projections)),
 		Capabilities: capabilities, Limitations: limitations,
 		IngestRunning: st.Ingest.Running,
 	}
@@ -117,6 +134,12 @@ func (a *Adapter) describeRecord(ctx context.Context, _ *mcp.CallToolRequest, _ 
 	}
 	for _, t := range defs.Definitions {
 		d.Types = append(d.Types, TypeSummary{Type: t.Type, Origin: t.Origin, CurrentVersion: t.Current, Versions: t.Versions})
+	}
+	for _, p := range projs.Projections {
+		d.Projections = append(d.Projections, ProjectionSummary{
+			Name: p.Name, Origin: p.Origin, CurrentVersion: p.Current, Versions: p.Versions,
+			Description: p.Description, Types: p.Types, Shape: p.Shape,
+		})
 	}
 	return nil, d, nil
 }

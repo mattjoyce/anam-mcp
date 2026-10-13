@@ -370,3 +370,60 @@ func TestTwoRevisions(t *testing.T) {
 		})
 	}
 }
+
+// Card 145: describe_record lists the projections a read may go through, bundled and
+// registered, so a model picks a name instead of being told one; a read through a
+// registered one is receipted, and the receipt names the template body that served.
+func TestDescribeRecordListsProjections(t *testing.T) {
+	h := start(t, "")
+	ctx := context.Background()
+	origins := func() map[string]adapter.ProjectionSummary {
+		t.Helper()
+		var d adapter.RecordDescription
+		if err := call(ctx, h.session, "describe_record", nil, &d); err != nil {
+			t.Fatal(err)
+		}
+		out := map[string]adapter.ProjectionSummary{}
+		for _, p := range d.Projections {
+			out[p.Name] = p
+		}
+		return out
+	}
+	before := origins()
+	for _, name := range []string{"bp", "meds", "sleep"} {
+		if p, ok := before[name]; !ok || p.Origin != "bundled" || p.CurrentVersion < 1 || len(p.Types) == 0 || p.Shape == "" {
+			t.Errorf("bundled projection %s listed as %+v", name, p)
+		}
+	}
+	if _, ok := before["bptest"]; ok {
+		t.Fatal("bptest listed before it was registered")
+	}
+
+	h.daemon.RegisterProjection(t, `{"name": "bptest", "version": 1, "description": "a test view of blood pressure",
+	  "types": ["`+bpType+`"], "statuses": ["admitted", "endorsed"], "max_classification": "Sensitive",
+	  "from": "", "to": "", "shape": "log"}`)
+	after := origins()
+	if p, ok := after["bptest"]; !ok || p.Origin != "registered" || p.CurrentVersion != 1 || p.Description == "" {
+		t.Fatalf("registered projection listed as %+v", p)
+	}
+
+	var r adapter.ReadOutput
+	err := call(ctx, h.session, "read_record", map[string]any{
+		"mode": "timeline", "projection": "bptest", "from": "2026-06-01", "to": "2026-06-30",
+	}, &r)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !r.Published || r.Receipt == nil || r.Receipt.Template != "bptest" || r.Receipt.TemplateHash == "" || r.Shown != 3 {
+		t.Errorf("a read through a registered projection: published %v, receipt %+v, shown %d", r.Published, r.Receipt, r.Shown)
+	}
+	var d adapter.RecordDescription
+	if err := call(ctx, h.session, "describe_record", nil, &d); err != nil {
+		t.Fatal(err)
+	}
+	for _, l := range d.Limitations {
+		if strings.Contains(l, "projections are not listed") {
+			t.Errorf("the stale limitation is still said: %q", l)
+		}
+	}
+}

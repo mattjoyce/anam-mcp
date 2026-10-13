@@ -12,7 +12,7 @@ Status: read-only first cut. Four tools and one resource, over what the daemon s
 
 | Tool | What it does | What it publishes |
 |---|---|---|
-| `describe_record` | Whose record, ledger identity and watermark, time and zone, source freshness, every admitted type, what the server can and cannot do | Nothing |
+| `describe_record` | Whose record, ledger identity and watermark, time and zone, source freshness, every admitted type, every projection a read may go through, what the server can and cannot do | Nothing |
 | `describe_type` | One type's Definition as published: JSON Schema with field descriptions, time semantics, identity | Nothing |
 | `read_record` | The timeline (narrowed by `from`, `to`, `type`) or a snapshot at a fact-time; `as_of` or `watermark` pin the knowledge; `fields` (JSON pointers) answers a frame of only those columns | With a `projection`, an immutable artifact and its receipt; without one, nothing, and the answer says so |
 | `verify_receipt` | Whether a receipt's artifact is intact and the ledger reproduces it | Nothing |

@@ -45,6 +45,24 @@ type DefinitionSummary struct {
 	Versions []int  `json:"versions"`
 }
 
+// Projections is the answer to GET /v1/projections (anam card 125).
+type Projections struct {
+	Projections []ProjectionSummary `json:"projections"`
+}
+
+// ProjectionSummary is one template as a consumer selects it: bundled with the
+// server or registered by the operator, its newest version and every version held.
+type ProjectionSummary struct {
+	Name        string   `json:"name"`
+	Origin      string   `json:"origin"`
+	Current     int      `json:"current"`
+	Versions    []int    `json:"versions"`
+	Description string   `json:"description"`
+	Types       []string `json:"types"`
+	Shape       string   `json:"shape"`
+	Hash        string   `json:"hash"`
+}
+
 // Definition is one manifest as published: its meta and its JSON Schema, kept as
 // the daemon sent them.
 type Definition struct {
@@ -145,6 +163,9 @@ type Receipt struct {
 	Span                 string        `json:"span"`
 	LedgerID             string        `json:"ledger_id,omitempty"`
 	Query                *ReceiptQuery `json:"query,omitempty"`
+	// TemplateHash is the content hash of the template version that pruned the
+	// value (anam card 125); receipts from before 2026-10-13 have none.
+	TemplateHash string `json:"template_hash,omitempty"`
 }
 
 // ReceiptQuery is how a read narrowed the template's value, resolved to instants.

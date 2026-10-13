@@ -235,3 +235,28 @@ func random(n int) string {
 	}
 	return hex.EncodeToString(b)
 }
+
+// RegisterProjection registers a template under the operator's token (anam card 125)
+// and fails t unless the daemon answers 201 or 200.
+func (d *Daemon) RegisterProjection(t *testing.T, manifest string) {
+	t.Helper()
+	token, err := os.ReadFile(d.TokenFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req, err := http.NewRequest(http.MethodPost, d.URL+"/v1/projections", strings.NewReader(manifest))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(token)))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("POST /v1/projections: %d %s", resp.StatusCode, body)
+	}
+}

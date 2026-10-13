@@ -101,6 +101,13 @@ func (c *Client) Definitions(ctx context.Context) (Definitions, error) {
 	return d, err
 }
 
+// Projections answers GET /v1/projections: every template a read may select.
+func (c *Client) Projections(ctx context.Context) (Projections, error) {
+	var p Projections
+	err := c.get(ctx, "/v1/projections", nil, &p)
+	return p, err
+}
+
 // Definition answers GET /v1/definitions/{type} or, with version > 0,
 // /{type}/{version}: the manifest as published.
 func (c *Client) Definition(ctx context.Context, typ string, version int) (Definition, error) {
