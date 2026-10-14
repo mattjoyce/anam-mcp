@@ -23,6 +23,8 @@ func TestConfigFromEnv(t *testing.T) {
 			Config{Server: "http://127.0.0.1:8787", Timeout: DefaultTimeout, Margin: DefaultMargin, MaxBody: 1 << 20}, ""},
 		{"max body too small", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "UTC", EnvMaxBody: "10"}, Config{}, EnvMaxBody + "=\"10\""},
 		{"max body not a number", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "UTC", EnvMaxBody: "lots"}, Config{}, EnvMaxBody + "=\"lots\""},
+		{"note token", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "UTC", EnvNoteTokenFile: "/run/note-token"},
+			Config{Server: "http://127.0.0.1:8787", NoteTokenFile: "/run/note-token", Timeout: DefaultTimeout, Margin: DefaultMargin, MaxBody: DefaultMaxBody}, ""},
 		{"no server", map[string]string{EnvZone: "UTC"}, Config{}, EnvServer + " is not set"},
 		{"no zone", map[string]string{EnvServer: "http://127.0.0.1:8787"}, Config{}, EnvZone + " is not set"},
 		{"local zone", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "Local"}, Config{}, EnvZone + " is not set"},
@@ -44,7 +46,7 @@ func TestConfigFromEnv(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got.Server != c.want.Server || got.TokenFile != c.want.TokenFile || got.Timeout != c.want.Timeout || got.Margin != c.want.Margin {
+			if got.Server != c.want.Server || got.TokenFile != c.want.TokenFile || got.NoteTokenFile != c.want.NoteTokenFile || got.Timeout != c.want.Timeout || got.Margin != c.want.Margin {
 				t.Errorf("config = %+v, want %+v", got, c.want)
 			}
 			if got.Zone == nil || got.Zone.String() != c.env[EnvZone] {

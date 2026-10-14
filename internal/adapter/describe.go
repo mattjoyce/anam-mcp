@@ -49,7 +49,7 @@ type RecordDescription struct {
 	Sources      []SourceFreshness   `json:"sources" jsonschema:"each source whose importer has sent a batch since the server started, and when; a quiet source may be current without recent facts"`
 	Types        []TypeSummary       `json:"types" jsonschema:"every facet type the server admits"`
 	Projections  []ProjectionSummary `json:"projections" jsonschema:"every projection a read may go through; read_record's projection takes one of these names"`
-	Capabilities []string            `json:"capabilities" jsonschema:"what read_record can do on this server"`
+	Capabilities []string            `json:"capabilities" jsonschema:"what this server can do"`
 	Limitations  []string            `json:"limitations" jsonschema:"what this server cannot do yet; do not work around these by other means"`
 }
 
@@ -108,6 +108,23 @@ var limitations = []string{
 	"no writes: nothing here records, corrects or retracts a fact",
 }
 
+// noteCapability and noteLimitation replace the last limitation when save_note is
+// offered.
+const (
+	noteCapability = "save_note: the person's own words saved verbatim as a note, at once; a correction is a new version"
+	noteLimitation = "no writes but notes: nothing here records a fact other than the person's own words, or retracts one"
+)
+
+// offered is what this adapter can and cannot do, as configured.
+func (a *Adapter) offered() (can, cannot []string) {
+	if a.notes == nil {
+		return capabilities, limitations
+	}
+	can = append(append([]string{}, capabilities...), noteCapability)
+	cannot = append(append([]string{}, limitations[:len(limitations)-1]...), noteLimitation)
+	return can, cannot
+}
+
 func (a *Adapter) describeRecord(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, RecordDescription, error) {
 	st, err := a.client.Status(ctx)
 	if err != nil {
@@ -121,6 +138,7 @@ func (a *Adapter) describeRecord(ctx context.Context, _ *mcp.CallToolRequest, _ 
 	if err != nil {
 		return nil, RecordDescription{}, a.failed("describe_record", err)
 	}
+	can, cannot := a.offered()
 	d := RecordDescription{
 		Person: st.Person, LedgerID: st.LedgerID, Watermark: st.W,
 		Now: a.now().UTC().Format(time.RFC3339), Zone: a.zone.String(),
@@ -128,7 +146,7 @@ func (a *Adapter) describeRecord(ctx context.Context, _ *mcp.CallToolRequest, _ 
 		Sources:      make([]SourceFreshness, 0, len(st.Sources)),
 		Types:        make([]TypeSummary, 0, len(defs.Definitions)),
 		Projections:  make([]ProjectionSummary, 0, len(projs.Projections)),
-		Capabilities: capabilities, Limitations: limitations,
+		Capabilities: can, Limitations: cannot,
 	}
 	for _, s := range st.Sources {
 		d.Sources = append(d.Sources, SourceFreshness{Source: s.Source, LastScanAt: s.LastScanAt, LastAdmissionAt: s.LastAdmissionAt})

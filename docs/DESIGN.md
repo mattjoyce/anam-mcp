@@ -104,8 +104,16 @@ a separate profile, enabled by configuration and authorization, never in the con
 with respect to the ledger but not free of effects, so its annotations must not label it read-only.
 Annotations describe effects accurately; they do not enforce permissions.
 
-No MCP tool inserts a facet. `log_assertion` reaches the ledger only through the source writer and
-the gate (API §6), and only after the stage 2 decisions in API §10 are agreed.
+No MCP tool inserts a facet behind the gate. Writing was decided on anam card 93 (2026-10-15): a
+conversation is an importer like any other, posting envelopes under its own token, so the gate
+checks what it writes as it checks every source. `save_note` (card 157) is the first: the person's
+words, verbatim and at once, as a `note.annotation` under source `conversation`, which may name no
+facet yet. It guesses neither type nor time: the type is fixed, the time is the moment it is said,
+written in the layout and zone the Definition declares. Its id is the moment and the words hashed,
+so a retry is a no-op, and a correction names the id and is a new version. It is offered only with
+`ANAM_MCP_NOTE_TOKEN_FILE`, so a deployment that sets no write token stays read-only. A model's
+reading of the words, as draft facts the person endorses, comes later under its own source
+(cards 158 to 161). Annotations mark it as adding without destroying, and idempotent.
 
 ## 4. Resources and prompts
 
