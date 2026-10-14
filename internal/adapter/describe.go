@@ -88,6 +88,9 @@ type TypeDescription struct {
 	Definition     any    `json:"definition" jsonschema:"the whole Definition as published: meta (time semantics, identity key) and schema (JSON Schema 2020-12)"`
 }
 
+// capabilities and limitations say what this build can and cannot do. Not
+// configurable: they describe the code, and a list that differed from it would
+// mislead the model.
 var capabilities = []string{
 	"timeline: live facts in fact-time order, narrowed by from, to and type",
 	"snapshot: the latest fact per series at or before a fact-time, with at",
