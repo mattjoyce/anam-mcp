@@ -13,9 +13,11 @@ func TestConfigFromEnv(t *testing.T) {
 		want    Config
 		wantErr string
 	}{
-		{"complete", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvTokenFile: "/run/token", EnvZone: "Australia/Sydney", EnvTimeout: "5s"},
-			Config{Server: "http://127.0.0.1:8787", TokenFile: "/run/token", Timeout: 5 * time.Second}, ""},
+		{"complete", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvTokenFile: "/run/token", EnvZone: "Australia/Sydney", EnvTimeout: "5s", EnvMargin: "2s"},
+			Config{Server: "http://127.0.0.1:8787", TokenFile: "/run/token", Timeout: 5 * time.Second, Margin: 2 * time.Second}, ""},
 		{"defaults", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "UTC"},
+			Config{Server: "http://127.0.0.1:8787", Timeout: DefaultTimeout, Margin: DefaultMargin}, ""},
+		{"zero margin", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "UTC", EnvMargin: "0s"},
 			Config{Server: "http://127.0.0.1:8787", Timeout: DefaultTimeout}, ""},
 		{"no server", map[string]string{EnvZone: "UTC"}, Config{}, EnvServer + " is not set"},
 		{"no zone", map[string]string{EnvServer: "http://127.0.0.1:8787"}, Config{}, EnvZone + " is not set"},
@@ -23,6 +25,8 @@ func TestConfigFromEnv(t *testing.T) {
 		{"bad zone", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "Mars/Olympus"}, Config{}, "Mars/Olympus"},
 		{"bad timeout", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "UTC", EnvTimeout: "soon"}, Config{}, EnvTimeout + "=\"soon\""},
 		{"zero timeout", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "UTC", EnvTimeout: "0s"}, Config{}, EnvTimeout + "=\"0s\""},
+		{"bad margin", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "UTC", EnvMargin: "later"}, Config{}, EnvMargin + "=\"later\""},
+		{"negative margin", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "UTC", EnvMargin: "-1s"}, Config{}, EnvMargin + "=\"-1s\""},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -36,7 +40,7 @@ func TestConfigFromEnv(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got.Server != c.want.Server || got.TokenFile != c.want.TokenFile || got.Timeout != c.want.Timeout {
+			if got.Server != c.want.Server || got.TokenFile != c.want.TokenFile || got.Timeout != c.want.Timeout || got.Margin != c.want.Margin {
 				t.Errorf("config = %+v, want %+v", got, c.want)
 			}
 			if got.Zone == nil || got.Zone.String() != c.env[EnvZone] {

@@ -18,17 +18,26 @@ import (
 )
 
 // The environment the adapter reads. ANAM_SERVER and ANAM_TOKEN_FILE are the
-// variables the anam CLI reads too, so one shell serves both.
+// variables the anam CLI reads too, so one shell serves both. The names are not
+// configurable; they are how configuration is found.
 const (
 	envPrefix    = "ANAM_"
 	EnvServer    = envPrefix + "SERVER"
 	EnvTokenFile = envPrefix + "TOKEN_FILE"
 	EnvZone      = envPrefix + "ZONE"
 	EnvTimeout   = envPrefix + "MCP_TIMEOUT"
+	EnvMargin    = envPrefix + "MCP_NETWORK_MARGIN"
 )
 
-// DefaultTimeout bounds each call on the daemon when ANAM_MCP_TIMEOUT is unset.
-const DefaultTimeout = 30 * time.Second
+// The opinionated defaults. Each is a config key; see AGENTS.md and anam card 151.
+const (
+	// DefaultTimeout bounds each call on the daemon when ANAM_MCP_TIMEOUT is unset.
+	DefaultTimeout = 30 * time.Second
+	// DefaultMargin is the time allowed beyond the daemon's deadline for its answer
+	// to travel, when ANAM_MCP_NETWORK_MARGIN is unset. A daemon across a slow link
+	// may want more.
+	DefaultMargin = 5 * time.Second
+)
 
 // Config is one run's configuration, resolved and checked.
 type Config struct {
@@ -36,13 +45,14 @@ type Config struct {
 	TokenFile string
 	Zone      *time.Location
 	Timeout   time.Duration
+	Margin    time.Duration
 }
 
 // ConfigFromEnv reads the configuration from the environment and refuses to start
 // without the server or a zone it can resolve. The zone must be named: a bare date
 // in a read is a day in it, and guessing one would misplace facts.
 func ConfigFromEnv(getenv func(string) string) (Config, error) {
-	c := Config{Server: getenv(EnvServer), TokenFile: getenv(EnvTokenFile), Timeout: DefaultTimeout}
+	c := Config{Server: getenv(EnvServer), TokenFile: getenv(EnvTokenFile), Timeout: DefaultTimeout, Margin: DefaultMargin}
 	if c.Server == "" {
 		return Config{}, fmt.Errorf("%s is not set: the daemon's base URL, such as http://127.0.0.1:8787", EnvServer)
 	}
@@ -62,6 +72,13 @@ func ConfigFromEnv(getenv func(string) string) (Config, error) {
 		}
 		c.Timeout = d
 	}
+	if v := getenv(EnvMargin); v != "" {
+		d, err := time.ParseDuration(v)
+		if err != nil || d < 0 {
+			return Config{}, fmt.Errorf("%s=%q: want zero or a positive duration such as 5s", EnvMargin, v)
+		}
+		c.Margin = d
+	}
 	return c, nil
 }
 
@@ -72,7 +89,7 @@ func Run(ctx context.Context, version string) error {
 	if err != nil {
 		return err
 	}
-	client, err := anam.New(cfg.Server, cfg.TokenFile, cfg.Timeout)
+	client, err := anam.New(cfg.Server, cfg.TokenFile, cfg.Timeout, cfg.Margin)
 	if err != nil {
 		return err
 	}

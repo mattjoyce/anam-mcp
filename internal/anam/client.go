@@ -19,14 +19,12 @@ import (
 )
 
 // timeoutHeader carries the caller's deadline to the daemon, which works to the
-// shorter of it and its own, so it answers before the caller gives up.
+// shorter of it and its own, so it answers before the caller gives up. Not
+// configurable: the daemon reads this name, and docs/API.md fixes it.
 const timeoutHeader = "Anam-Timeout"
 
-// networkMargin is the time allowed beyond the daemon's deadline for the answer to
-// travel, so a daemon that answers at its bound is still heard.
-const networkMargin = 5 * time.Second
-
-// CodeTooLarge is the daemon's code for a read refused for its size.
+// CodeTooLarge is the daemon's code for a read refused for its size. Not
+// configurable: the daemon sends it, and docs/API.md fixes it.
 const CodeTooLarge = "result_too_large"
 
 // ErrUnreachable marks a call that never got an answer: the daemon is down, the
@@ -53,13 +51,16 @@ type Client struct {
 	server  string
 	token   []byte
 	timeout time.Duration
+	margin  time.Duration
 	http    *http.Client
 }
 
 // New makes a client of the daemon at server. tokenFile may be empty for a daemon
 // on loopback that asks for no token; otherwise its content, trimmed, is sent as a
-// bearer token and never logged. timeout bounds each call on the daemon's side.
-func New(server, tokenFile string, timeout time.Duration) (*Client, error) {
+// bearer token and never logged. timeout bounds each call on the daemon's side;
+// margin is the time allowed beyond it for the answer to travel, so a daemon that
+// answers at its bound is still heard.
+func New(server, tokenFile string, timeout, margin time.Duration) (*Client, error) {
 	u, err := url.Parse(server)
 	if err != nil || u.Scheme == "" || u.Host == "" {
 		return nil, fmt.Errorf("anam: server %q: want a URL such as http://127.0.0.1:8787", server)
@@ -67,7 +68,12 @@ func New(server, tokenFile string, timeout time.Duration) (*Client, error) {
 	if timeout <= 0 {
 		return nil, fmt.Errorf("anam: timeout %s: want a positive duration", timeout)
 	}
-	c := &Client{server: strings.TrimRight(server, "/"), timeout: timeout, http: &http.Client{}}
+	if margin < 0 {
+		return nil, fmt.Errorf("anam: network margin %s: want zero or a positive duration", margin)
+	}
+	// The http.Client has no timeout of its own: each call's context carries the
+	// deadline, so there is one bound per call and not two.
+	c := &Client{server: strings.TrimRight(server, "/"), timeout: timeout, margin: margin, http: &http.Client{}}
 	if tokenFile != "" {
 		b, err := os.ReadFile(tokenFile) // #nosec G304 -- the operator names the file in configuration.
 		if err != nil {
@@ -156,7 +162,7 @@ func (c *Client) get(ctx context.Context, path string, q url.Values, out any) er
 // do makes one call, bounded by the client's timeout and the caller's context, and
 // decodes a 2xx into out. Any other status is an *Error; no answer is ErrUnreachable.
 func (c *Client) do(ctx context.Context, method, path string, q url.Values, out any) error {
-	ctx, cancel := context.WithTimeout(ctx, c.timeout+networkMargin)
+	ctx, cancel := context.WithTimeout(ctx, c.timeout+c.margin)
 	defer cancel()
 	u := c.server + path
 	if len(q) > 0 {

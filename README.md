@@ -29,7 +29,12 @@ The resource `anam://receipts/{hash}` serves a published read by its receipt has
 | `ANAM_SERVER` | The daemon's base URL. Required |
 | `ANAM_TOKEN_FILE` | A file holding the token; never logged. Omit only for a daemon on loopback that asks for none |
 | `ANAM_ZONE` | IANA zone for reads, such as `Australia/Sydney`. Required: a bare date is a day in it |
-| `ANAM_MCP_TIMEOUT` | Deadline for each call on the daemon. Default `30s` |
+| `ANAM_MCP_TIMEOUT` | Deadline for each call on the daemon, sent to it so it answers in time. Default `30s`, so a stuck daemon fails the tool within half a minute rather than holding the conversation. A positive duration |
+| `ANAM_MCP_NETWORK_MARGIN` | Time allowed beyond that deadline for the answer to travel, so a daemon that answers at its bound is still heard. Default `5s`, ample on a LAN; a daemon across a slow link may want more. Zero or a positive duration |
+
+A value that fails its check stops the adapter at start, naming the variable. Every other value
+in the code is fixed because changing it would break the MCP contract, the daemon's API, or what
+a citation means; each says so where it is defined.
 
 The first two are the variables the `anam` CLI reads, so one shell serves both.
 
