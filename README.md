@@ -31,6 +31,7 @@ The resource `anam://receipts/{hash}` serves a published read by its receipt has
 | `ANAM_ZONE` | IANA zone for reads, such as `Australia/Sydney`. Required: a bare date is a day in it |
 | `ANAM_MCP_TIMEOUT` | Deadline for each call on the daemon, sent to it so it answers in time. Default `30s`, so a stuck daemon fails the tool within half a minute rather than holding the conversation. A positive duration |
 | `ANAM_MCP_NETWORK_MARGIN` | Time allowed beyond that deadline for the answer to travel, so a daemon that answers at its bound is still heard. Default `5s`, ample on a LAN; a daemon across a slow link may want more. Zero or a positive duration |
+| `ANAM_MCP_MAX_RESPONSE_BYTES` | The most the adapter reads of one answer from the daemon. Default `67108864` (64 MiB), the anam CLI's own bound; the daemon's `max_read_bytes` refuses a read far smaller than this first, so this only stops a daemon that misbehaves. From 1024 to 1073741824 |
 
 A value that fails its check stops the adapter at start, naming the variable. Every other value
 in the code is fixed because changing it would break the MCP contract, the daemon's API, or what

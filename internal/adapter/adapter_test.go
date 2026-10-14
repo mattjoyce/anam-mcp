@@ -66,7 +66,7 @@ func start(t *testing.T, protocol string) *harness {
 // connect builds the adapter over the daemon at url and connects a client to it.
 func connect(t *testing.T, url, tokenFile, protocol string) *mcp.ClientSession {
 	t.Helper()
-	client, err := anam.New(url, tokenFile, 10*time.Second, 5*time.Second)
+	client, err := anam.New(url, tokenFile, 10*time.Second, 5*time.Second, 64<<20)
 	if err != nil {
 		t.Fatal(err)
 	}

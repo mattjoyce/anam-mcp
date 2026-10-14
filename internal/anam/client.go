@@ -52,6 +52,7 @@ type Client struct {
 	token   []byte
 	timeout time.Duration
 	margin  time.Duration
+	maxBody int64
 	http    *http.Client
 }
 
@@ -59,8 +60,9 @@ type Client struct {
 // on loopback that asks for no token; otherwise its content, trimmed, is sent as a
 // bearer token and never logged. timeout bounds each call on the daemon's side;
 // margin is the time allowed beyond it for the answer to travel, so a daemon that
-// answers at its bound is still heard.
-func New(server, tokenFile string, timeout, margin time.Duration) (*Client, error) {
+// answers at its bound is still heard. maxBody bounds what the client reads of one
+// answer.
+func New(server, tokenFile string, timeout, margin time.Duration, maxBody int64) (*Client, error) {
 	u, err := url.Parse(server)
 	if err != nil || u.Scheme == "" || u.Host == "" {
 		return nil, fmt.Errorf("anam: server %q: want a URL such as http://127.0.0.1:8787", server)
@@ -71,9 +73,12 @@ func New(server, tokenFile string, timeout, margin time.Duration) (*Client, erro
 	if margin < 0 {
 		return nil, fmt.Errorf("anam: network margin %s: want zero or a positive duration", margin)
 	}
+	if maxBody < 1 {
+		return nil, fmt.Errorf("anam: max response bytes %d: want a positive number", maxBody)
+	}
 	// The http.Client has no timeout of its own: each call's context carries the
 	// deadline, so there is one bound per call and not two.
-	c := &Client{server: strings.TrimRight(server, "/"), timeout: timeout, margin: margin, http: &http.Client{}}
+	c := &Client{server: strings.TrimRight(server, "/"), timeout: timeout, margin: margin, maxBody: maxBody, http: &http.Client{}}
 	if tokenFile != "" {
 		b, err := os.ReadFile(tokenFile) // #nosec G304 -- the operator names the file in configuration.
 		if err != nil {
@@ -182,9 +187,13 @@ func (c *Client) do(ctx context.Context, method, path string, q url.Values, out 
 		return fmt.Errorf("%w: %s: %w", ErrUnreachable, c.server, unwrapURL(err))
 	}
 	defer resp.Body.Close() //nolint:errcheck // nothing to do with a close error on a read body
-	body, err := io.ReadAll(resp.Body)
+	body, err := io.ReadAll(io.LimitReader(resp.Body, c.maxBody+1))
 	if err != nil {
 		return fmt.Errorf("%w: %s: reading the answer: %w", ErrUnreachable, c.server, err)
+	}
+	if int64(len(body)) > c.maxBody {
+		return fmt.Errorf("anam: %s %s: the answer is over %d bytes (ANAM_MCP_MAX_RESPONSE_BYTES); narrow the read",
+			method, path, c.maxBody)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return failure(resp.StatusCode, body)

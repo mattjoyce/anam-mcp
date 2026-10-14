@@ -14,11 +14,15 @@ func TestConfigFromEnv(t *testing.T) {
 		wantErr string
 	}{
 		{"complete", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvTokenFile: "/run/token", EnvZone: "Australia/Sydney", EnvTimeout: "5s", EnvMargin: "2s"},
-			Config{Server: "http://127.0.0.1:8787", TokenFile: "/run/token", Timeout: 5 * time.Second, Margin: 2 * time.Second}, ""},
+			Config{Server: "http://127.0.0.1:8787", TokenFile: "/run/token", Timeout: 5 * time.Second, Margin: 2 * time.Second, MaxBody: DefaultMaxBody}, ""},
 		{"defaults", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "UTC"},
-			Config{Server: "http://127.0.0.1:8787", Timeout: DefaultTimeout, Margin: DefaultMargin}, ""},
+			Config{Server: "http://127.0.0.1:8787", Timeout: DefaultTimeout, Margin: DefaultMargin, MaxBody: DefaultMaxBody}, ""},
 		{"zero margin", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "UTC", EnvMargin: "0s"},
-			Config{Server: "http://127.0.0.1:8787", Timeout: DefaultTimeout}, ""},
+			Config{Server: "http://127.0.0.1:8787", Timeout: DefaultTimeout, MaxBody: DefaultMaxBody}, ""},
+		{"max body", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "UTC", EnvMaxBody: "1048576"},
+			Config{Server: "http://127.0.0.1:8787", Timeout: DefaultTimeout, Margin: DefaultMargin, MaxBody: 1 << 20}, ""},
+		{"max body too small", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "UTC", EnvMaxBody: "10"}, Config{}, EnvMaxBody + "=\"10\""},
+		{"max body not a number", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "UTC", EnvMaxBody: "lots"}, Config{}, EnvMaxBody + "=\"lots\""},
 		{"no server", map[string]string{EnvZone: "UTC"}, Config{}, EnvServer + " is not set"},
 		{"no zone", map[string]string{EnvServer: "http://127.0.0.1:8787"}, Config{}, EnvZone + " is not set"},
 		{"local zone", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "Local"}, Config{}, EnvZone + " is not set"},

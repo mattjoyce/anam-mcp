@@ -16,7 +16,7 @@ import (
 // answer, the narrowings offered when a read was too large, the daemon's own words
 // otherwise.
 func TestFailed(t *testing.T) {
-	client, err := anam.New("http://127.0.0.1:1", "", time.Second, time.Second)
+	client, err := anam.New("http://127.0.0.1:1", "", time.Second, time.Second, 64<<20)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestFailed(t *testing.T) {
 // TestQuery checks the read shapes that are refused before any call, and the one
 // that is sent, zone included.
 func TestQuery(t *testing.T) {
-	client, err := anam.New("http://127.0.0.1:1", "", time.Second, time.Second)
+	client, err := anam.New("http://127.0.0.1:1", "", time.Second, time.Second, 64<<20)
 	if err != nil {
 		t.Fatal(err)
 	}
