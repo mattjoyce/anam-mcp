@@ -15,13 +15,6 @@ type Status struct {
 	W        int64          `json:"w"`
 	Since    string         `json:"since,omitempty"`
 	Sources  []SourceStatus `json:"sources"`
-	Ingest   IngestState    `json:"ingest"`
-}
-
-// IngestState names the daemon's running and pending ingest runs, if any.
-type IngestState struct {
-	Running string `json:"running,omitempty"`
-	Pending string `json:"pending,omitempty"`
 }
 
 // SourceStatus is what the daemon has seen of one source since it started.

@@ -38,26 +38,25 @@ type DescribeTypeInput struct {
 
 // RecordDescription is what describe_record answers.
 type RecordDescription struct {
-	Person        string              `json:"person" jsonschema:"the person whose record this is, as the server labels them"`
-	LedgerID      string              `json:"ledger_id" jsonschema:"the ledger's identity; a receipt names it, and a watermark means nothing without it"`
-	Watermark     int64               `json:"watermark" jsonschema:"the ledger's current position; a read at this watermark sees exactly this knowledge"`
-	Now           string              `json:"now" jsonschema:"the current instant, RFC 3339 UTC; resolve relative dates against it"`
-	Zone          string              `json:"zone" jsonschema:"the IANA zone a bare date in a read is a day in"`
-	AnamVersion   string              `json:"anam_version" jsonschema:"the server's build"`
-	AdapterVer    string              `json:"adapter_version" jsonschema:"this adapter's build"`
-	ServerSince   string              `json:"server_since,omitempty" jsonschema:"when the server started; source freshness below covers only what it has seen since"`
-	Sources       []SourceFreshness   `json:"sources" jsonschema:"each source the server has read since it started, and when; a quiet source may be current without recent facts"`
-	Types         []TypeSummary       `json:"types" jsonschema:"every facet type the server admits"`
-	Projections   []ProjectionSummary `json:"projections" jsonschema:"every projection a read may go through; read_record's projection takes one of these names"`
-	Capabilities  []string            `json:"capabilities" jsonschema:"what read_record can do on this server"`
-	Limitations   []string            `json:"limitations" jsonschema:"what this server cannot do yet; do not work around these by other means"`
-	IngestRunning string              `json:"ingest_running,omitempty" jsonschema:"an ingest in progress, if any; the watermark may move"`
+	Person       string              `json:"person" jsonschema:"the person whose record this is, as the server labels them"`
+	LedgerID     string              `json:"ledger_id" jsonschema:"the ledger's identity; a receipt names it, and a watermark means nothing without it"`
+	Watermark    int64               `json:"watermark" jsonschema:"the ledger's current position; a read at this watermark sees exactly this knowledge"`
+	Now          string              `json:"now" jsonschema:"the current instant, RFC 3339 UTC; resolve relative dates against it"`
+	Zone         string              `json:"zone" jsonschema:"the IANA zone a bare date in a read is a day in"`
+	AnamVersion  string              `json:"anam_version" jsonschema:"the server's build"`
+	AdapterVer   string              `json:"adapter_version" jsonschema:"this adapter's build"`
+	ServerSince  string              `json:"server_since,omitempty" jsonschema:"when the server started; source freshness below covers only what it has seen since"`
+	Sources      []SourceFreshness   `json:"sources" jsonschema:"each source whose importer has sent a batch since the server started, and when; a quiet source may be current without recent facts"`
+	Types        []TypeSummary       `json:"types" jsonschema:"every facet type the server admits"`
+	Projections  []ProjectionSummary `json:"projections" jsonschema:"every projection a read may go through; read_record's projection takes one of these names"`
+	Capabilities []string            `json:"capabilities" jsonschema:"what read_record can do on this server"`
+	Limitations  []string            `json:"limitations" jsonschema:"what this server cannot do yet; do not work around these by other means"`
 }
 
 // SourceFreshness is when a source was last read and last changed the record.
 type SourceFreshness struct {
 	Source          string `json:"source"`
-	LastScanAt      string `json:"last_scan_at" jsonschema:"when the server last read this source"`
+	LastScanAt      string `json:"last_scan_at" jsonschema:"when this source's importer last sent a batch"`
 	LastAdmissionAt string `json:"last_admission_at,omitempty" jsonschema:"when a read of this source last changed the record; empty if none has since the server started"`
 }
 
@@ -127,7 +126,6 @@ func (a *Adapter) describeRecord(ctx context.Context, _ *mcp.CallToolRequest, _ 
 		Types:        make([]TypeSummary, 0, len(defs.Definitions)),
 		Projections:  make([]ProjectionSummary, 0, len(projs.Projections)),
 		Capabilities: capabilities, Limitations: limitations,
-		IngestRunning: st.Ingest.Running,
 	}
 	for _, s := range st.Sources {
 		d.Sources = append(d.Sources, SourceFreshness{Source: s.Source, LastScanAt: s.LastScanAt, LastAdmissionAt: s.LastAdmissionAt})

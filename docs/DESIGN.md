@@ -145,7 +145,7 @@ does. No mocks of the daemon.
 1. **Discovery to evidence.** The model calls `describe_record`, picks blood pressure, reads a month
    with `read_record`, follows one citation, and verifies its receipt. Payload, version, and
    position agree at every step.
-2. **Stable conversation.** An ingest lands between `read_page` calls and between two related
+2. **Stable conversation.** An importer's batch lands between `read_page` calls and between two related
    `read_record` calls. Pages stay pinned; the second read, given the first's position, excludes
    the new knowledge.
 3. **Honest absence.** A tool the daemon cannot back is either not listed or answers with an
