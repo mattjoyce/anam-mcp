@@ -70,7 +70,8 @@ func (a *Adapter) verifyReceipt(ctx context.Context, _ *mcp.CallToolRequest, in 
 	return nil, out, nil
 }
 
-// receiptPrefix is where the receipt resource's URIs live.
+// receiptPrefix is where the receipt resource's URIs live. Not configurable: a
+// citation names a receipt by this URI, and it must resolve on any deployment.
 const receiptPrefix = "anam://receipts/"
 
 var receiptResource = &mcp.ResourceTemplate{
