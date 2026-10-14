@@ -142,7 +142,7 @@ func (c *Client) Timeline(ctx context.Context, q TimelineQuery) (Timeline, error
 // daemon requires a projection.
 func (c *Client) Publish(ctx context.Context, q TimelineQuery) (Published, error) {
 	var p Published
-	err := c.do(ctx, http.MethodPost, "/v1/receipts", q.values(), &p)
+	err := c.do(ctx, http.MethodPost, "/v1/receipts", q.values(), nil, &p)
 	return p, err
 }
 
@@ -161,21 +161,42 @@ func (c *Client) VerifyReceipt(ctx context.Context, hash string) (ReceiptVerifie
 }
 
 func (c *Client) get(ctx context.Context, path string, q url.Values, out any) error {
-	return c.do(ctx, http.MethodGet, path, q, out)
+	return c.do(ctx, http.MethodGet, path, q, nil, out)
+}
+
+// Submit answers POST /v1/envelopes: one batch, admitted whole or refused whole. It
+// needs an importer's token, so it is called on a client made with one; the daemon
+// admits the batch as that importer's source.
+func (c *Client) Submit(ctx context.Context, envelopes []Envelope) (Submitted, error) {
+	body, err := json.Marshal(map[string]any{"envelopes": envelopes})
+	if err != nil {
+		return Submitted{}, fmt.Errorf("anam: POST /v1/envelopes: %w", err)
+	}
+	var s Submitted
+	err = c.do(ctx, http.MethodPost, "/v1/envelopes", nil, body, &s)
+	return s, err
 }
 
 // do makes one call, bounded by the client's timeout and the caller's context, and
-// decodes a 2xx into out. Any other status is an *Error; no answer is ErrUnreachable.
-func (c *Client) do(ctx context.Context, method, path string, q url.Values, out any) error {
+// decodes a 2xx into out. body, when not nil, is sent as JSON. Any other status is
+// an *Error; no answer is ErrUnreachable.
+func (c *Client) do(ctx context.Context, method, path string, q url.Values, body []byte, out any) error {
 	ctx, cancel := context.WithTimeout(ctx, c.timeout+c.margin)
 	defer cancel()
 	u := c.server + path
 	if len(q) > 0 {
 		u += "?" + q.Encode()
 	}
-	req, err := http.NewRequestWithContext(ctx, method, u, http.NoBody)
+	var reqBody io.Reader = http.NoBody
+	if body != nil {
+		reqBody = bytes.NewReader(body)
+	}
+	req, err := http.NewRequestWithContext(ctx, method, u, reqBody)
 	if err != nil {
 		return fmt.Errorf("anam: %s %s: %w", method, path, err)
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
 	}
 	req.Header.Set(timeoutHeader, c.timeout.String())
 	req.Header.Set("Accept", "application/json")
@@ -187,18 +208,18 @@ func (c *Client) do(ctx context.Context, method, path string, q url.Values, out 
 		return fmt.Errorf("%w: %s: %w", ErrUnreachable, c.server, unwrapURL(err))
 	}
 	defer resp.Body.Close() //nolint:errcheck // nothing to do with a close error on a read body
-	body, err := io.ReadAll(io.LimitReader(resp.Body, c.maxBody+1))
+	answer, err := io.ReadAll(io.LimitReader(resp.Body, c.maxBody+1))
 	if err != nil {
 		return fmt.Errorf("%w: %s: reading the answer: %w", ErrUnreachable, c.server, err)
 	}
-	if int64(len(body)) > c.maxBody {
+	if int64(len(answer)) > c.maxBody {
 		return fmt.Errorf("anam: %s %s: the answer is over %d bytes (ANAM_MCP_MAX_RESPONSE_BYTES); narrow the read",
 			method, path, c.maxBody)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return failure(resp.StatusCode, body)
+		return failure(resp.StatusCode, answer)
 	}
-	if err := json.Unmarshal(body, out); err != nil {
+	if err := json.Unmarshal(answer, out); err != nil {
 		return fmt.Errorf("anam: %s %s: the answer is not the JSON expected: %w", method, path, err)
 	}
 	return nil
@@ -212,6 +233,11 @@ func failure(status int, body []byte) error {
 		if e.Error == "" {
 			e.Error = http.StatusText(status)
 		}
+	}
+	// A refused batch names every envelope that failed and why; the reasons are
+	// what a caller needs to fix it.
+	for _, r := range e.Refused {
+		e.Error += fmt.Sprintf("; envelope %d (%s): %s", r.Index, r.Type, r.Reason)
 	}
 	return &Error{Status: status, Message: e.Error, Code: e.Code, TooLarge: e.TooLarge}
 }

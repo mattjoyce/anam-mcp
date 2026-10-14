@@ -33,6 +33,7 @@ const EvidenceNotice = "Each entry is evidence from one of the record's sources,
 // Adapter translates between MCP tools and the daemon.
 type Adapter struct {
 	client  *anam.Client
+	notes   *anam.Client
 	zone    *time.Location
 	now     func() time.Time
 	version string
@@ -47,15 +48,31 @@ func New(client *anam.Client, zone *time.Location, now func() time.Time, version
 	return &Adapter{client: client, zone: zone, now: now, version: version}
 }
 
+// WithNotes offers save_note, which writes through notes: a client made with the
+// token of the importer the person's words are admitted as (source conversation,
+// anam card 157). Without it the adapter writes nothing.
+func (a *Adapter) WithNotes(notes *anam.Client) *Adapter {
+	a.notes = notes
+	return a
+}
+
 // Server builds the MCP server with every tool this build offers, in a fixed list,
-// and the receipt resource. The list changes only with a new build, never per call.
+// and the receipt resource. The list changes only with a new build or its
+// configuration, never per call: save_note is offered only with WithNotes.
 func (a *Adapter) Server() *mcp.Server {
+	instr := instructions
+	if a.notes != nil {
+		instr += noteInstructions
+	}
 	s := mcp.NewServer(&mcp.Implementation{Name: Name, Title: "Anam", Version: a.version},
-		&mcp.ServerOptions{Instructions: instructions})
+		&mcp.ServerOptions{Instructions: instr})
 	mcp.AddTool(s, describeRecordTool, a.describeRecord)
 	mcp.AddTool(s, describeTypeTool, a.describeType)
 	mcp.AddTool(s, readRecordTool, a.readRecord)
 	mcp.AddTool(s, verifyReceiptTool, a.verifyReceipt)
+	if a.notes != nil {
+		mcp.AddTool(s, saveNoteTool, a.saveNote)
+	}
 	s.AddResourceTemplate(receiptResource, a.readReceiptResource)
 	return s
 }

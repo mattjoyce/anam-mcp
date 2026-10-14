@@ -66,9 +66,24 @@ type Definition struct {
 // DefinitionMeta is the part of a manifest the adapter reads for itself; the rest
 // of the meta travels on in Raw.
 type DefinitionMeta struct {
-	FacetType         string `json:"facet_type"`
-	DefinitionVersion int    `json:"definition_version"`
-	Classification    string `json:"classification,omitempty"`
+	FacetType         string        `json:"facet_type"`
+	DefinitionVersion int           `json:"definition_version"`
+	Classification    string        `json:"classification,omitempty"`
+	TimeSemantics     TimeSemantics `json:"time_semantics"`
+}
+
+// TimeSemantics says where a type's fact time is in the payload and how it is
+// written, so a writer renders a moment the way the gate will read it.
+type TimeSemantics struct {
+	FactTime FactTime `json:"fact_time"`
+}
+
+// FactTime is the payload field that places a facet, its Go time layout, and the
+// zone a wall-clock value in it is read in.
+type FactTime struct {
+	Pointer string `json:"pointer"`
+	Layout  string `json:"layout"`
+	Zone    string `json:"zone"`
 }
 
 // TimelineQuery is a timeline read as the reader asks for it. It travels as URL
@@ -210,4 +225,37 @@ type errorBody struct {
 	Error    string    `json:"error"`
 	Code     string    `json:"code,omitempty"`
 	TooLarge *TooLarge `json:"too_large,omitempty"`
+	Refused  []refusal `json:"refused,omitempty"`
+}
+
+// refusal is one envelope of a batch the gate refused, and why.
+type refusal struct {
+	Index  int    `json:"index"`
+	Type   string `json:"type"`
+	Reason string `json:"reason"`
+}
+
+// Envelope is one fact offered to the gate: its type, the Definition version the
+// payload is shaped to (the type's current one), and the payload. The source is the
+// token's, never a field.
+type Envelope struct {
+	Type              string `json:"type"`
+	DefinitionVersion int    `json:"definition_version"`
+	Payload           any    `json:"payload"`
+}
+
+// Submitted is the daemon's answer to an admitted batch: the watermark after it, how
+// many envelopes changed the record, and each one's outcome.
+type Submitted struct {
+	W       int64          `json:"w"`
+	Changed int            `json:"changed"`
+	Results []SubmitResult `json:"results"`
+}
+
+// SubmitResult is one envelope's fate: admitted, superseded or no-op.
+type SubmitResult struct {
+	Index           int    `json:"index"`
+	Outcome         string `json:"outcome"`
+	FacetID         string `json:"facet_id"`
+	ArtifactVersion int    `json:"artifact_version"`
 }

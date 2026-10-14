@@ -29,6 +29,10 @@ const (
 	EnvTimeout   = envPrefix + "MCP_TIMEOUT"
 	EnvMargin    = envPrefix + "MCP_NETWORK_MARGIN"
 	EnvMaxBody   = envPrefix + "MCP_MAX_RESPONSE_BYTES"
+	// EnvNoteTokenFile names the token of the importer the person's words are
+	// admitted as (source conversation). Set, the adapter offers save_note; unset,
+	// it writes nothing (anam card 157).
+	EnvNoteTokenFile = envPrefix + "MCP_NOTE_TOKEN_FILE"
 )
 
 // The opinionated defaults. Each is a config key; see AGENTS.md and anam card 151.
@@ -49,17 +53,19 @@ const (
 type Config struct {
 	Server    string
 	TokenFile string
-	Zone      *time.Location
-	Timeout   time.Duration
-	Margin    time.Duration
-	MaxBody   int64
+	// NoteTokenFile is the conversation importer's token; empty, no note is saved.
+	NoteTokenFile string
+	Zone          *time.Location
+	Timeout       time.Duration
+	Margin        time.Duration
+	MaxBody       int64
 }
 
 // ConfigFromEnv reads the configuration from the environment and refuses to start
 // without the server or a zone it can resolve. The zone must be named: a bare date
 // in a read is a day in it, and guessing one would misplace facts.
 func ConfigFromEnv(getenv func(string) string) (Config, error) {
-	c := Config{Server: getenv(EnvServer), TokenFile: getenv(EnvTokenFile), Timeout: DefaultTimeout, Margin: DefaultMargin, MaxBody: DefaultMaxBody}
+	c := Config{Server: getenv(EnvServer), TokenFile: getenv(EnvTokenFile), NoteTokenFile: getenv(EnvNoteTokenFile), Timeout: DefaultTimeout, Margin: DefaultMargin, MaxBody: DefaultMaxBody}
 	if c.Server == "" {
 		return Config{}, fmt.Errorf("%s is not set: the daemon's base URL, such as http://127.0.0.1:8787", EnvServer)
 	}
@@ -107,8 +113,17 @@ func Run(ctx context.Context, version string) error {
 	if err != nil {
 		return err
 	}
-	server := adapter.New(client, cfg.Zone, time.Now, version).Server()
-	log.Info("anam-mcp: serving on stdio", "server", cfg.Server, "zone", cfg.Zone.String(), "version", version)
+	a := adapter.New(client, cfg.Zone, time.Now, version)
+	if cfg.NoteTokenFile != "" {
+		notes, err := anam.New(cfg.Server, cfg.NoteTokenFile, cfg.Timeout, cfg.Margin, cfg.MaxBody)
+		if err != nil {
+			return fmt.Errorf("%s: %w", EnvNoteTokenFile, err)
+		}
+		a.WithNotes(notes)
+	}
+	server := a.Server()
+	log.Info("anam-mcp: serving on stdio", "server", cfg.Server, "zone", cfg.Zone.String(), "version", version,
+		"notes", cfg.NoteTokenFile != "")
 	err = server.Run(ctx, &mcp.StdioTransport{})
 	if err != nil && !errors.Is(err, context.Canceled) {
 		return fmt.Errorf("anam-mcp: %w", err)
