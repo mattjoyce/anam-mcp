@@ -56,11 +56,14 @@ type ProjectionSummary struct {
 	Hash        string   `json:"hash"`
 }
 
-// Definition is one manifest as published: its meta and its JSON Schema, kept as
-// the daemon sent them.
+// Definition is one manifest as published: its meta, its JSON Schema and, when
+// the type carries one, its handling block, kept as the daemon sent them. The
+// handling is what every writer of the type must agree on, served verbatim; by
+// convention its guidance key is prose (anam card 166).
 type Definition struct {
-	Meta   DefinitionMeta  `json:"meta"`
-	Schema json.RawMessage `json:"schema"`
+	Meta     DefinitionMeta  `json:"meta"`
+	Schema   json.RawMessage `json:"schema"`
+	Handling json.RawMessage `json:"handling,omitempty"`
 }
 
 // DefinitionMeta is the part of a manifest the adapter reads for itself; the rest
@@ -237,11 +240,14 @@ type refusal struct {
 
 // Envelope is one fact offered to the gate: its type, the Definition version the
 // payload is shaped to (the type's current one), and the payload. The source is the
-// token's, never a field.
+// token's, never a field. AssertedPerson, set to the record's person, says the
+// source scopes the fact to them explicitly, which the gate binds with high
+// assurance (anam card 177).
 type Envelope struct {
 	Type              string `json:"type"`
 	DefinitionVersion int    `json:"definition_version"`
 	Payload           any    `json:"payload"`
+	AssertedPerson    string `json:"asserted_person,omitempty"`
 }
 
 // Submitted is the daemon's answer to an admitted batch: the watermark after it, how

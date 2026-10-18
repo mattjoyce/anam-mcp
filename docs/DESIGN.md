@@ -115,6 +115,20 @@ so a retry is a no-op, and a correction names the id and is a new version. It is
 reading of the words, as draft facts the person endorses, comes later under its own source
 (cards 158 to 161). Annotations mark it as adding without destroying, and idempotent.
 
+`save_fact` (card 177) is the second, on Matt's rule that a fact he instructs under an authorised
+token is his own, with high confidence. It saves a facet of any type the daemon knows, under the
+same `conversation` token, which the daemon scopes with `any_type`: it submits every type and
+owns no Definition. The tool fetches the type's Definition, names a required field that is
+missing and a fact-time that does not parse before the daemon sees the payload, and otherwise
+lets the gate validate; the Definition composes the identity, so the same fact again is a no-op
+and changed fields are a new version. It sends `asserted_person`, so the gate binds the fact to
+the person with high assurance. What keeps it the person's fact and not the model's is the
+tool's contract, as `save_note`'s verbatim rule is: the fields are what the person gave or
+confirmed, a field that would have to be guessed is asked for, and a model's own reading stays
+a draft under `interpretation`. The source in every facet's identity keeps what the person
+asserts apart from what a device observed of the same kind; nothing ranks one above the other
+at read time.
+
 ## 4. Resources and prompts
 
 Resources can identify immutable receipts and their evidence, for example

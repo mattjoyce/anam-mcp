@@ -23,11 +23,12 @@ const (
 	noteAt = "2026-07-01 10:00"
 )
 
-// startNotes runs a daemon whose one importer is the conversation, allowed only
-// notes, and connects an adapter that saves notes through its token.
+// startNotes runs a daemon whose one importer is the conversation, allowed any
+// type as the deployed one is, and connects an adapter that saves notes and facts
+// through its token.
 func startNotes(t *testing.T) (*Daemon, *mcp.ClientSession) {
 	t.Helper()
-	d := startDaemon(t, noteSource, []string{noteType})
+	d := startDaemon(t, noteSource, nil)
 	noteToken := filepath.Join(t.TempDir(), "note-token")
 	if err := os.WriteFile(noteToken, []byte(d.importerToken+"\n"), 0o600); err != nil {
 		t.Fatal(err)
@@ -161,7 +162,7 @@ func TestSaveNote_Refusals(t *testing.T) {
 // save_note is offered, and described, only when the adapter has the note token.
 func TestSaveNote_OfferedOnlyWithItsToken(t *testing.T) {
 	_, cs := startNotes(t)
-	want := append(slices.Clone(toolNames), "save_note")
+	want := append(slices.Clone(toolNames), "save_note", "save_fact")
 	slices.Sort(want)
 	if got := listTools(t, cs); !slices.Equal(got, want) {
 		t.Errorf("tools with notes = %v", got)

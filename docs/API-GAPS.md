@@ -22,7 +22,7 @@ check.
 | Discovery: coverage | ~~No route lists projections~~ Done (anam card 125): `GET /v1/projections` lists bundled and registered templates, adopted in `describe_record` (card 145). Still no counts or date ranges per type | `describe_record` saying how far back each type goes | 90 |
 | One facet by reference | No route returns a facet version by id with its provenance | `get_evidence` | 91 |
 | Paging over a published result (`ReadPage`, API §5) | Reads are whole | `read_page`, once reads are receipted | 92 |
-| The assertion lifecycle (API §6, stage 2 in API §10) | No write route for a reader | `validate_assertion`, `log_assertion`, `get_submission`, `correct_assertion` | 93 |
+| The assertion lifecycle (API §6, stage 2 in API §10) | ~~No write route for a reader~~ `save_fact` (anam card 177) logs a fact of any type under the `conversation` token, validated by the gate and corrected by resending the same identity. Still no dry-run validation and no submission lookup | `validate_assertion`, `get_submission` | 93, 177 |
 
 Not gaps: snapshots (`at`, latest per series, closed series gone), bitemporal reads (`as_of`
 with `at`), projections by name, `explain=true` verdicts, Definitions with field descriptions,

@@ -40,8 +40,9 @@ type Daemon struct {
 	stderr        bytes.Buffer
 }
 
-// Start runs a daemon for t that admits types from source, and stops it when the
-// test ends. It skips t when ANAM_BIN is unset.
+// Start runs a daemon for t that admits types from source, or every type when
+// types is empty (any_type, anam card 177), and stops it when the test ends. It
+// skips t when ANAM_BIN is unset.
 func startDaemon(t *testing.T, source string, types []string) *Daemon {
 	t.Helper()
 	bin := os.Getenv(EnvBin)
@@ -54,8 +55,12 @@ func startDaemon(t *testing.T, source string, types []string) *Daemon {
 		t.Fatal(err)
 	}
 	sum := sha256.Sum256([]byte(d.importerToken))
-	importers := fmt.Sprintf("importers:\n  - source: %s\n    token_sha256: %s\n    types: [%s]\n",
-		source, hex.EncodeToString(sum[:]), strings.Join(types, ", "))
+	scope := "any_type: true"
+	if len(types) > 0 {
+		scope = "types: [" + strings.Join(types, ", ") + "]"
+	}
+	importers := fmt.Sprintf("importers:\n  - source: %s\n    token_sha256: %s\n    %s\n",
+		source, hex.EncodeToString(sum[:]), scope)
 	if err := os.WriteFile(filepath.Join(dir, "importers.yaml"), []byte(importers), 0o600); err != nil {
 		t.Fatal(err)
 	}

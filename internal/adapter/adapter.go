@@ -48,9 +48,10 @@ func New(client *anam.Client, zone *time.Location, now func() time.Time, version
 	return &Adapter{client: client, zone: zone, now: now, version: version}
 }
 
-// WithNotes offers save_note, which writes through notes: a client made with the
-// token of the importer the person's words are admitted as (source conversation,
-// anam card 157). Without it the adapter writes nothing.
+// WithNotes offers save_note and save_fact, which write through notes: a client
+// made with the token of the importer the person's words and facts are admitted
+// as (source conversation, anam cards 157 and 177). Without it the adapter writes
+// nothing.
 func (a *Adapter) WithNotes(notes *anam.Client) *Adapter {
 	a.notes = notes
 	return a
@@ -58,11 +59,12 @@ func (a *Adapter) WithNotes(notes *anam.Client) *Adapter {
 
 // Server builds the MCP server with every tool this build offers, in a fixed list,
 // and the receipt resource. The list changes only with a new build or its
-// configuration, never per call: save_note is offered only with WithNotes.
+// configuration, never per call: save_note and save_fact are offered only with
+// WithNotes.
 func (a *Adapter) Server() *mcp.Server {
 	instr := instructions
 	if a.notes != nil {
-		instr += noteInstructions
+		instr += noteInstructions + factInstructions
 	}
 	s := mcp.NewServer(&mcp.Implementation{Name: Name, Title: "Anam", Version: a.version},
 		&mcp.ServerOptions{Instructions: instr})
@@ -72,6 +74,7 @@ func (a *Adapter) Server() *mcp.Server {
 	mcp.AddTool(s, verifyReceiptTool, a.verifyReceipt)
 	if a.notes != nil {
 		mcp.AddTool(s, saveNoteTool, a.saveNote)
+		mcp.AddTool(s, saveFactTool, a.saveFact)
 	}
 	s.AddResourceTemplate(receiptResource, a.readReceiptResource)
 	return s
