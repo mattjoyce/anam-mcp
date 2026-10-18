@@ -29,9 +29,9 @@ const (
 	EnvTimeout   = envPrefix + "MCP_TIMEOUT"
 	EnvMargin    = envPrefix + "MCP_NETWORK_MARGIN"
 	EnvMaxBody   = envPrefix + "MCP_MAX_RESPONSE_BYTES"
-	// EnvNoteTokenFile names the token of the importer the person's words are
-	// admitted as (source conversation). Set, the adapter offers save_note; unset,
-	// it writes nothing (anam card 157).
+	// EnvNoteTokenFile names the token of the importer the person's words and
+	// facts are admitted as (source conversation). Set, the adapter offers
+	// save_note and save_fact; unset, it writes nothing (anam cards 157, 177).
 	EnvNoteTokenFile = envPrefix + "MCP_NOTE_TOKEN_FILE"
 )
 

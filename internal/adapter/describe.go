@@ -24,9 +24,10 @@ var describeTypeTool = &mcp.Tool{
 	Name:  "describe_type",
 	Title: "Describe a facet type",
 	Description: "The exact shape of one facet type, as its published Definition: the JSON Schema every payload of that " +
-		"type satisfies, with each field's description and examples, and the meta that says how a fact is placed in " +
-		"time and identified. Use it to read a payload correctly, never to guess at fields a schema does not name. " +
-		"It publishes nothing. Its answer is the Definition as published, usually a few KB.",
+		"type satisfies, with each field's description and examples, the meta that says how a fact is placed in " +
+		"time and identified, and the handling every writer of the type agrees on, when it carries one; read its " +
+		"guidance before save_fact. Use it to read or write a payload correctly, never to guess at fields a schema " +
+		"does not name. It publishes nothing. Its answer is the Definition as published, usually a few KB.",
 	Annotations: readOnly(),
 }
 
@@ -85,7 +86,8 @@ type TypeDescription struct {
 	Type           string `json:"type"`
 	Version        int    `json:"version"`
 	Classification string `json:"classification,omitempty" jsonschema:"the type's classification, as the Definition declares it"`
-	Definition     any    `json:"definition" jsonschema:"the whole Definition as published: meta (time semantics, identity key) and schema (JSON Schema 2020-12)"`
+	Guidance       string `json:"guidance,omitempty" jsonschema:"the handling's prose, when the type carries any: how writers of the type agree on names, ids and dates; read it before save_fact"`
+	Definition     any    `json:"definition" jsonschema:"the whole Definition as published: meta (time semantics, identity key), schema (JSON Schema 2020-12) and handling, when the type carries one"`
 }
 
 // capabilities and limitations say what this build can and cannot do. Not
@@ -108,11 +110,12 @@ var limitations = []string{
 	"no writes: nothing here records, corrects or retracts a fact",
 }
 
-// noteCapability and noteLimitation replace the last limitation when save_note is
-// offered.
+// noteCapability, factCapability and writeLimitation replace the last limitation
+// when save_note and save_fact are offered.
 const (
-	noteCapability = "save_note: the person's own words saved verbatim as a note, at once; a correction is a new version"
-	noteLimitation = "no writes but notes: nothing here records a fact other than the person's own words, or retracts one"
+	noteCapability  = "save_note: the person's own words saved verbatim as a note, at once; a correction is a new version"
+	factCapability  = "save_fact: a fact the person asks to have recorded, saved as a facet of any type under their own source, marked as asserted by them; the same fact again is a no-op, changed fields are a new version"
+	writeLimitation = "no retraction, and no fact but the person's own: nothing here removes a fact, and nothing here saves what a model inferred as the person's assertion"
 )
 
 // offered is what this adapter can and cannot do, as configured.
@@ -120,8 +123,8 @@ func (a *Adapter) offered() (can, cannot []string) {
 	if a.notes == nil {
 		return capabilities, limitations
 	}
-	can = append(append([]string{}, capabilities...), noteCapability)
-	cannot = append(append([]string{}, limitations[:len(limitations)-1]...), noteLimitation)
+	can = append(append([]string{}, capabilities...), noteCapability, factCapability)
+	cannot = append(append([]string{}, limitations[:len(limitations)-1]...), writeLimitation)
 	return can, cannot
 }
 
@@ -185,6 +188,21 @@ func (a *Adapter) describeType(ctx context.Context, _ *mcp.CallToolRequest, in D
 	}
 	return nil, TypeDescription{
 		Type: def.Meta.FacetType, Version: def.Meta.DefinitionVersion,
-		Classification: def.Meta.Classification, Definition: whole,
+		Classification: def.Meta.Classification, Guidance: guidanceOf(def.Handling), Definition: whole,
 	}, nil
+}
+
+// guidanceOf is the prose in a handling block's guidance key, or "" when the
+// block has none. The rest of the block travels in the Definition as published.
+func guidanceOf(handling json.RawMessage) string {
+	if len(handling) == 0 {
+		return ""
+	}
+	var block struct {
+		Guidance string `json:"guidance"`
+	}
+	if err := json.Unmarshal(handling, &block); err != nil {
+		return ""
+	}
+	return block.Guidance
 }
