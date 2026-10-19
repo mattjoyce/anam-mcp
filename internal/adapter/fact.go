@@ -73,11 +73,11 @@ func (a *Adapter) saveFact(ctx context.Context, _ *mcp.CallToolRequest, in SaveF
 	if err := checkFactTime(d, in.Payload); err != nil {
 		return nil, SaveFactOutput{}, fmt.Errorf("save_fact: %w", err)
 	}
-	st, err := a.client.Status(ctx)
+	person, err := a.assertedPerson(ctx, "save_fact")
 	if err != nil {
-		return nil, SaveFactOutput{}, a.failed("save_fact", err)
+		return nil, SaveFactOutput{}, err
 	}
-	env := anam.Envelope{Type: in.Type, DefinitionVersion: d.Meta.DefinitionVersion, Payload: in.Payload, AssertedPerson: st.Person}
+	env := anam.Envelope{Type: in.Type, DefinitionVersion: d.Meta.DefinitionVersion, Payload: in.Payload, AssertedPerson: person}
 	s, err := a.notes.Submit(ctx, []anam.Envelope{env})
 	if err != nil {
 		// The identity is the Definition's, from the fields, so the same call again

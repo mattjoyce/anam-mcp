@@ -86,6 +86,21 @@ func readOnly() *mcp.ToolAnnotations {
 	return &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &f}
 }
 
+// assertedPerson is the record's person, as the daemon states it, for a write tool
+// to scope its envelope to with asserted_person: the gate then binds the fact with
+// high assurance. A daemon that names no person is an error, not a quiet medium
+// binding, since the person's own words and facts are what these tools save.
+func (a *Adapter) assertedPerson(ctx context.Context, what string) (string, error) {
+	st, err := a.client.Status(ctx)
+	if err != nil {
+		return "", a.failed(what, err)
+	}
+	if st.Person == "" {
+		return "", fmt.Errorf("%s: the daemon at %s names no person, so nothing can be saved as theirs", what, a.client.Server())
+	}
+	return st.Person, nil
+}
+
 // failed turns a daemon error into the error a tool answers with. The daemon that
 // could not be reached is named; a read refused for its size says how to narrow it.
 func (a *Adapter) failed(what string, err error) error {
