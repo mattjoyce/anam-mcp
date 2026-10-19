@@ -15,7 +15,7 @@ import (
 
 // noteType is the type save_note writes. Not configurable: the tool's description
 // and its answer describe this type, and the conversation token is scoped to it.
-const noteType = "note.annotation"
+const noteType = "record.note"
 
 // noteIDPrefix starts the id of a note taken down in conversation. Not
 // configurable: the id is the note's identity, and the Definition documents this

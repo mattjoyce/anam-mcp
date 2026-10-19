@@ -104,11 +104,11 @@ func TestDescribeType_ShowsTheGuidance(t *testing.T) {
 	h := start(t, "")
 	ctx := context.Background()
 	var med adapter.TypeDescription
-	if err := call(ctx, h.session, "describe_type", map[string]any{"type": "med.started"}, &med); err != nil {
+	if err := call(ctx, h.session, "describe_type", map[string]any{"type": "health.medication-started"}, &med); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(med.Guidance, "generic name") {
-		t.Errorf("med.started guidance = %q, want the drug naming rule", med.Guidance)
+		t.Errorf("health.medication-started guidance = %q, want the drug naming rule", med.Guidance)
 	}
 	whole, _ := med.Definition.(map[string]any)
 	if _, has := whole["handling"]; !has {
