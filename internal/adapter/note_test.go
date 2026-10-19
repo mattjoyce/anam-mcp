@@ -135,6 +135,51 @@ func TestSaveNote_CorrectsByANewVersion(t *testing.T) {
 	}
 }
 
+// Words the person relays from earlier are dated when they were said, not when they
+// reached the record (card 162): at alone, no id, places the note; the same words at
+// the same moment are one note; and the present minute itself is not "the future".
+func TestSaveNote_DatesRelayedWords(t *testing.T) {
+	_, cs := startNotes(t)
+	ctx := context.Background()
+	const said = "2026-06-30 21:30" // Sydney, the evening before the harness clock
+	words := "Last night I took 5 mg of melatonin."
+	var first adapter.SaveNoteOutput
+	if err := call(ctx, cs, "save_note", map[string]any{"text": words, "at": said}, &first); err != nil {
+		t.Fatal(err)
+	}
+	if first.Outcome != "admitted" || first.At != said || !strings.HasPrefix(first.ID, "conversation:") {
+		t.Fatalf("relayed save = %+v", first)
+	}
+	var again adapter.SaveNoteOutput
+	if err := call(ctx, cs, "save_note", map[string]any{"text": words, "at": said}, &again); err != nil {
+		t.Fatal(err)
+	}
+	if again.Outcome != "no-op" || again.ID != first.ID {
+		t.Errorf("the same relayed words again = %+v, want a no-op on %s", again, first.ID)
+	}
+	var now adapter.SaveNoteOutput
+	if err := call(ctx, cs, "save_note", map[string]any{"text": words, "at": noteAt}, &now); err != nil {
+		t.Fatalf("the present minute given as at: %v", err)
+	}
+	if now.ID == first.ID {
+		t.Errorf("the same words at another moment share id %s", now.ID)
+	}
+
+	var r adapter.ReadOutput
+	if err := call(ctx, cs, "read_record", map[string]any{
+		"mode": "timeline", "type": noteType, "from": "2026-06-30", "to": "2026-07-01",
+	}, &r); err != nil {
+		t.Fatal(err)
+	}
+	i := slices.IndexFunc(r.Evidence, func(e adapter.Evidence) bool { return e.FacetID == first.FacetID })
+	if i < 0 {
+		t.Fatalf("the relayed note is not among the %d notes read from 30 June", len(r.Evidence))
+	}
+	if p, _ := r.Evidence[i].Payload.(map[string]any); p["at"] != said || p["text"] != words {
+		t.Errorf("relayed note = %v", r.Evidence[i].Payload)
+	}
+}
+
 // What the tool cannot save is refused with the reason, and nothing is written.
 func TestSaveNote_Refusals(t *testing.T) {
 	_, cs := startNotes(t)
@@ -146,6 +191,9 @@ func TestSaveNote_Refusals(t *testing.T) {
 		"no words":                {map[string]any{"text": "  "}, "text is required"},
 		"a correction with no at": {map[string]any{"text": "x", "id": "conversation:0011223344556677"}, "needs at"},
 		"at in another layout":    {map[string]any{"text": "x", "id": "conversation:0011223344556677", "at": "1 July"}, "want the layout"},
+		"at alone, wrong layout":  {map[string]any{"text": "x", "at": "yesterday evening"}, "want the layout"},
+		"at a minute from now":    {map[string]any{"text": "x", "at": "2026-07-01 10:01"}, "in the future"},
+		"at tomorrow":             {map[string]any{"text": "x", "at": "2026-07-02 09:00"}, "in the future"},
 		"about that is not an id": {map[string]any{"text": "x", "about": []string{"the heart rate alert"}}, "envelope 0"},
 		"names the retry":         {map[string]any{"text": "x", "about": []string{"the heart rate alert"}}, "pass id conversation:"},
 	} {

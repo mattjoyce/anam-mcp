@@ -18,7 +18,7 @@ cards 157 and 177).
 | `describe_type` | One type's Definition as published: JSON Schema with field descriptions, time semantics, identity, and the handling guidance every writer of the type agrees on | Nothing |
 | `read_record` | The timeline (narrowed by `from`, `to`, `type`) or a snapshot at a fact-time; `as_of` or `watermark` pin the knowledge; `fields` (JSON pointers) answers a frame of only those columns | With a `projection`, an immutable artifact and its receipt; without one, nothing, and the answer says so |
 | `verify_receipt` | Whether a receipt's artifact is intact and the ledger reproduces it | Nothing |
-| `save_note` | The person's words, verbatim and at once, as a `note.annotation` under the conversation's own source, naming the facets they are about or none, marked as asserted by them; the same words at the same minute are one note, and a correction (`id` and `at`) is a new version | A note in the record |
+| `save_note` | The person's words, verbatim and at once, as a `note.annotation` under the conversation's own source, naming the facets they are about or none, marked as asserted by them; words said now take the present moment and words relayed from earlier take `at`, never in the future; the same words at the same minute are one note, and a correction (`id` and `at`) is a new version | A note in the record |
 | `save_fact` | A fact the person asks to have recorded, as a facet of any type the daemon knows, under the conversation's own source and marked as asserted by them; the fields are the type's own, validated by the gate; the same fact again is a no-op and changed fields are a new version | A facet in the record |
 
 The resource `anam://receipts/{hash}` serves a published read by its receipt hash.
