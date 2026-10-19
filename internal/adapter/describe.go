@@ -100,6 +100,7 @@ var capabilities = []string{
 	"watermark: a read pinned to a ledger position a receipt names, so two reads see the same knowledge",
 	"projection: a read through a named projection, published with a receipt",
 	"fields: a read answered as a frame of only the payload fields named, JSON pointers from describe_type, a fraction of the size",
+	"query: a Datalog program run through a projection, joining facts across types and along time, answered as one relation with a receipt; describe_query gives the language, the relations and each type's pointers",
 	"verify: a receipt checked against the ledger and the stored artifact",
 }
 

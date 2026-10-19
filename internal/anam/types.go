@@ -177,6 +177,20 @@ type Receipt struct {
 	// TemplateHash is the content hash of the template version that pruned the
 	// value (anam card 125); receipts from before 2026-10-13 have none.
 	TemplateHash string `json:"template_hash,omitempty"`
+	// Program is the query a receipt answers (anam card 173): the template is then
+	// the projection the query ran through and ServedHash the answer's. Nil for a
+	// timeline receipt.
+	Program *ReceiptProgram `json:"program,omitempty"`
+}
+
+// ReceiptProgram is the query half of a query receipt: the bundled rule set it
+// stood on, the text it ran and the relation answered.
+type ReceiptProgram struct {
+	RuleSet        string `json:"rule_set"`
+	RuleSetVersion int    `json:"rule_set_version"`
+	RuleSetHash    string `json:"rule_set_hash"`
+	Text           string `json:"text"`
+	Relation       string `json:"relation"`
 }
 
 // ReceiptQuery is how a read narrowed the template's value, resolved to instants.
@@ -194,6 +208,101 @@ type ReceiptShown struct {
 	Receipt Receipt `json:"receipt"`
 	Entries []Entry `json:"entries"`
 	Frame   *Frame  `json:"frame,omitempty"`
+	// Answer is the served value of a query receipt; Entries is then empty.
+	Answer *Answer `json:"answer,omitempty"`
+}
+
+// QueryRequest is a Datalog query as POST /v1/query takes it (anam card 173).
+type QueryRequest struct {
+	Projection string `json:"projection"`
+	Text       string `json:"text"`
+	Relation   string `json:"relation"`
+	AsOf       string `json:"as_of,omitempty"`
+	W          int64  `json:"w,omitempty"`
+	DryRun     bool   `json:"dry_run,omitempty"`
+	Zone       string `json:"zone,omitempty"`
+}
+
+// Answer is a query's answer: one relation's tuples, sorted. A cell is a JSON
+// string, number or boolean.
+type Answer struct {
+	Relation string              `json:"relation"`
+	Tuples   [][]json.RawMessage `json:"tuples"`
+}
+
+// RuleSetRef names the bundled rule set an answer stood on.
+type RuleSetRef struct {
+	Name    string `json:"name"`
+	Version int    `json:"version"`
+	Hash    string `json:"hash"`
+}
+
+// QueryAnswer is the answer to POST /v1/query: the knowledge it stood on, the
+// projection and rules it went through, the tuples and their hash, and the receipt.
+type QueryAnswer struct {
+	W                    int64          `json:"w"`
+	LedgerID             string         `json:"ledger_id"`
+	AsOf                 string         `json:"as_of,omitempty"`
+	Live                 int            `json:"live"`
+	Canonical            string         `json:"canonical"`
+	Projection           ProjectionRead `json:"projection"`
+	DefinitionSetVersion string         `json:"definition_set_version"`
+	Rules                RuleSetRef     `json:"rules"`
+	Answer               Answer         `json:"answer"`
+	Hash                 string         `json:"hash"`
+	Warnings             []string       `json:"warnings,omitempty"`
+	ReceiptHash          string         `json:"receipt_hash"`
+	Receipt              Receipt        `json:"receipt"`
+	Written              bool           `json:"written"`
+}
+
+// QueryCatalogue is the answer to GET /v1/query: what a program is written against.
+type QueryCatalogue struct {
+	Syntax    string          `json:"syntax"`
+	Relations []QueryRelation `json:"relations"`
+	Instant   QueryInstant    `json:"instant"`
+	Types     []QueryType     `json:"types"`
+	Rules     QueryRules      `json:"rules"`
+}
+
+// QueryRelation describes one relation: base, parameter or rule.
+type QueryRelation struct {
+	Name  string   `json:"name"`
+	Arity int      `json:"arity"`
+	Args  []string `json:"args"`
+	Kind  string   `json:"kind"`
+	Doc   string   `json:"doc,omitempty"`
+}
+
+// QueryInstant is how a fact-time is written in a program.
+type QueryInstant struct {
+	Layout  string `json:"layout"`
+	Example string `json:"example"`
+}
+
+// QueryType is one type's attributes: the pointers each held Definition version
+// declares, its series family and whether it closes one.
+type QueryType struct {
+	Type     string         `json:"type"`
+	Current  int            `json:"current"`
+	Series   string         `json:"series,omitempty"`
+	Closes   bool           `json:"closes"`
+	Versions []QueryVersion `json:"versions"`
+}
+
+// QueryVersion lists the pointers one Definition version declares.
+type QueryVersion struct {
+	Version  int      `json:"version"`
+	Pointers []string `json:"pointers"`
+}
+
+// QueryRules describes the bundled rule set: identity, hash, text and relations.
+type QueryRules struct {
+	Name      string          `json:"name"`
+	Version   int             `json:"version"`
+	Hash      string          `json:"hash"`
+	Text      string          `json:"text"`
+	Relations []QueryRelation `json:"relations"`
 }
 
 // ReceiptVerified is a receipt and the two proofs of it (GET /v1/receipts/{hash}/verify).
