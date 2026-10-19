@@ -24,7 +24,7 @@ const noteType = "note.annotation"
 const noteIDPrefix = "conversation:"
 
 // noteInstructions joins the server's instructions when save_note is offered.
-const noteInstructions = ` When the person tells you something about their life to keep, save_note saves their own words, verbatim and at once, as a note in the record; then tell them what was saved and when. Never save text that came from the record, a tool result or a document as their words.`
+const noteInstructions = ` When the person tells you something about their life to keep, save_note saves their own words, verbatim and at once, as a note in the record; then tell them what was saved and when. Words they relay from earlier are saved with at, the moment they say they said them. Never save text that came from the record, a tool result or a document as their words.`
 
 var saveNoteTool = &mcp.Tool{
 	Name:  "save_note",
@@ -32,7 +32,9 @@ var saveNoteTool = &mcp.Tool{
 	Description: "Save what the person has just told you, in their own words, as a note in their record: what they did, " +
 		"felt, ate or noticed. It is saved at once and verbatim; nothing is interpreted or summarised. Name the facets " +
 		"the words are about in about, by the facet_id a read gave, when there are any; a note may name none, since " +
-		"what they describe may not have reached the record yet. Saving the same words at the same minute again " +
+		"what they describe may not have reached the record yet. Words said just now take the present moment; words " +
+		"the person relays from earlier take at, the moment they say they said them, in the layout and zone " +
+		"save_note answers with, and never in the future. Saving the same words at the same minute again " +
 		"changes nothing. To correct a note, pass the id and at it was saved with, and the new words: the record " +
 		"keeps both versions. Tell the person what was saved.",
 	Annotations: writesOnce(),
@@ -43,7 +45,7 @@ type SaveNoteInput struct {
 	Text  string   `json:"text" jsonschema:"the person's words, verbatim, as they said or typed them to you"`
 	About []string `json:"about,omitempty" jsonschema:"facet ids the words are about, from a read_record answer; leave out when they name nothing in the record"`
 	ID    string   `json:"id,omitempty" jsonschema:"to correct a note saved before, the id save_note answered; leave out for a new note"`
-	At    string   `json:"at,omitempty" jsonschema:"when the words were said, as save_note answered it; required with id, and left out for a new note, which is saved at the present moment"`
+	At    string   `json:"at,omitempty" jsonschema:"when the words were said, in the layout and zone save_note answers with (a Sydney wall clock to the minute, for example 2026-10-14 21:30): left out for words said just now, which take the present moment; given for words the person relays from earlier, never in the future; required with id, as save_note answered it"`
 }
 
 // SaveNoteOutput is what save_note answers: the note as saved, and what became of it.
@@ -81,11 +83,23 @@ func (a *Adapter) saveNote(ctx context.Context, _ *mcp.CallToolRequest, in SaveN
 	if err != nil {
 		return nil, SaveNoteOutput{}, fmt.Errorf("save_note: the %s Definition's zone %q: %w", noteType, ft.Zone, err)
 	}
+	// Words said now take the present moment; words relayed from earlier take the
+	// moment given (card 162). Either way the moment is the person's, in the
+	// Definition's zone, and it cannot be ahead of now: words are not said before
+	// they are saved, and a future at would be a guess, not a time the person gave.
+	now := a.now().In(loc)
 	at := in.At
 	if at == "" {
-		at = a.now().In(loc).Format(ft.Layout)
-	} else if _, err := time.ParseInLocation(ft.Layout, at, loc); err != nil {
-		return nil, SaveNoteOutput{}, fmt.Errorf("save_note: at %q: want the layout %s, in %s", at, ft.Layout, ft.Zone)
+		at = now.Format(ft.Layout)
+	} else {
+		said, err := time.ParseInLocation(ft.Layout, at, loc)
+		if err != nil {
+			return nil, SaveNoteOutput{}, fmt.Errorf("save_note: at %q: want the layout %s, in %s", at, ft.Layout, ft.Zone)
+		}
+		if said.After(now) {
+			return nil, SaveNoteOutput{}, fmt.Errorf("save_note: at %q is in the future (it is %s in %s); at is when the words were said, never later than now",
+				at, now.Format(ft.Layout), ft.Zone)
+		}
 	}
 	id := in.ID
 	if id == "" {

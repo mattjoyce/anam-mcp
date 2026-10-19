@@ -109,7 +109,9 @@ conversation is an importer like any other, posting envelopes under its own toke
 checks what it writes as it checks every source. `save_note` (card 157) is the first: the person's
 words, verbatim and at once, as a `note.annotation` under source `conversation`, which may name no
 facet yet. It guesses neither type nor time: the type is fixed, the time is the moment it is said,
-written in the layout and zone the Definition declares. Its id is the moment and the words hashed,
+or, for words the person relays from earlier, the moment they say they said them (`at`, card 162),
+never in the future, written in the layout and zone the Definition declares. Its id is the moment
+and the words hashed,
 so a retry is a no-op, and a correction names the id and is a new version. It sends
 `asserted_person`, as `save_fact` does, so a note binds to the person as firmly as a fact. It is
 offered only with `ANAM_MCP_NOTE_TOKEN_FILE`, so a deployment that sets no write token stays
