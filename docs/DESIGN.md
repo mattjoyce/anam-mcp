@@ -110,8 +110,10 @@ checks what it writes as it checks every source. `save_note` (card 157) is the f
 words, verbatim and at once, as a `note.annotation` under source `conversation`, which may name no
 facet yet. It guesses neither type nor time: the type is fixed, the time is the moment it is said,
 written in the layout and zone the Definition declares. Its id is the moment and the words hashed,
-so a retry is a no-op, and a correction names the id and is a new version. It is offered only with
-`ANAM_MCP_NOTE_TOKEN_FILE`, so a deployment that sets no write token stays read-only. A model's
+so a retry is a no-op, and a correction names the id and is a new version. It sends
+`asserted_person`, as `save_fact` does, so a note binds to the person as firmly as a fact. It is
+offered only with `ANAM_MCP_NOTE_TOKEN_FILE`, so a deployment that sets no write token stays
+read-only. A model's
 reading of the words, as draft facts the person endorses, comes later under its own source
 (cards 158 to 161). Annotations mark it as adding without destroying, and idempotent.
 
@@ -127,7 +129,9 @@ tool's contract, as `save_note`'s verbatim rule is: the fields are what the pers
 confirmed, a field that would have to be guessed is asked for, and a model's own reading stays
 a draft under `interpretation`. The source in every facet's identity keeps what the person
 asserts apart from what a device observed of the same kind; nothing ranks one above the other
-at read time.
+at read time, except that a series is not source-stamped, so in a snapshot read the latest entry
+of a series wins whatever its source: the person saying a course stopped closes it. `any_type`
+reaches facets and not the library, so the conversation token stores no document.
 
 ## 4. Resources and prompts
 
