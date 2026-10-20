@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	noteType   = "note.annotation"
+	noteType   = "record.note"
 	noteSource = "conversation"
 	// noteAt is the harness clock, 2026-07-01 00:00 UTC, as the note Definition
 	// writes it: a Sydney wall-clock to the minute.
