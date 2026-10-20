@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	noteType   = "record.note"
+	noteType   = "record.edge"
 	noteSource = "conversation"
 	// noteAt is the harness clock, 2026-07-01 00:00 UTC, as the note Definition
 	// writes it: a Sydney wall-clock to the minute.
@@ -106,8 +106,30 @@ func TestSaveNote_SavesTheWordsOnce(t *testing.T) {
 	if e.Source != noteSource || e.FacetID != first.FacetID || p["text"] != words || p["at"] != noteAt {
 		t.Errorf("note = source %s, payload %v", e.Source, e.Payload)
 	}
-	if _, named := p["about"]; named {
-		t.Errorf("a note that names nothing carries about: %v", p["about"])
+	if _, named := p["to"]; named {
+		t.Errorf("a note that names nothing carries to: %v", p["to"])
+	}
+}
+
+// The facets the words are about are sent as the edge's to side, the name
+// record.edge gives it, and not as about, record.note v1's name.
+func TestSaveNote_NamesItsFacetsInTo(t *testing.T) {
+	_, cs := startNotes(t)
+	about := "2c6f38a3-3db7-5e65-b933-9c59980e1c6c"
+	var saved adapter.SaveNoteOutput
+	if err := call(context.Background(), cs, "save_note", map[string]any{"text": "Felt it after the meeting.", "about": []string{about}}, &saved); err != nil {
+		t.Fatal(err)
+	}
+	got := notesOn(t, cs)
+	if len(got) != 1 {
+		t.Fatalf("%d notes, want 1", len(got))
+	}
+	p, _ := got[0].Payload.(map[string]any)
+	if to, _ := p["to"].([]any); len(to) != 1 || to[0] != about {
+		t.Errorf("to = %v, want [%s]", p["to"], about)
+	}
+	if _, old := p["about"]; old {
+		t.Errorf("the note carries about: %v", p)
 	}
 }
 
