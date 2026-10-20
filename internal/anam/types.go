@@ -154,11 +154,27 @@ type Entry struct {
 	Payload        json.RawMessage `json:"payload"`
 }
 
-// Published is a read filed with its receipt (POST /v1/receipts).
+// Published is a read filed with its receipt (POST /v1/receipts). A read too large
+// for one answer is filed whole and answered a page at a time (anam card 92):
+// Entries, Versions or the frame's rows are then the first page, Shown stays the
+// whole count, and Page says where the rest is. Page is nil from a daemon older
+// than card 92, which answered whole or refused.
 type Published struct {
 	Timeline
 	ReceiptHash string  `json:"receipt_hash"`
 	Receipt     Receipt `json:"receipt"`
+	Page        *Page   `json:"page,omitempty"`
+}
+
+// Page is which portion of a receipted value an answer carries (anam card 92): the
+// receipt's facets from Offset, ReturnedCount of them, of TotalCount in all, cut
+// from the filed artifact and never a new read. NextCursor asks for the page after
+// this one (GET /v1/receipts/{hash}?cursor=); empty on the last page.
+type Page struct {
+	Offset        int    `json:"offset"`
+	ReturnedCount int    `json:"returned_count"`
+	TotalCount    int    `json:"total_count"`
+	NextCursor    string `json:"next_cursor,omitempty"`
 }
 
 // Receipt is the daemon's claim about one served value: what was served, at which
@@ -202,14 +218,18 @@ type ReceiptQuery struct {
 	Fields []string `json:"fields,omitempty"`
 }
 
-// ReceiptShown is a receipt and the served value it names (GET /v1/receipts/{hash}).
+// ReceiptShown is a receipt and a page of the served value it names (GET
+// /v1/receipts/{hash}). Receipt rides the first page only: a page asked for by
+// cursor carries Hash and Page with its entries (anam card 92).
 type ReceiptShown struct {
-	Hash    string  `json:"hash"`
-	Receipt Receipt `json:"receipt"`
-	Entries []Entry `json:"entries"`
-	Frame   *Frame  `json:"frame,omitempty"`
-	// Answer is the served value of a query receipt; Entries is then empty.
+	Hash    string   `json:"hash"`
+	Receipt *Receipt `json:"receipt,omitempty"`
+	Entries []Entry  `json:"entries"`
+	Frame   *Frame   `json:"frame,omitempty"`
+	// Answer is the served value of a query receipt; Entries is then empty. An
+	// answer is one relation and is not paged, so Page is then nil.
 	Answer *Answer `json:"answer,omitempty"`
+	Page   *Page   `json:"page,omitempty"`
 }
 
 // QueryRequest is a Datalog query as POST /v1/query takes it (anam card 173).
@@ -324,12 +344,17 @@ type VerifyResult struct {
 	Notes       []string `json:"notes,omitempty"`
 }
 
-// TooLarge measures a read the daemon refused to answer whole.
+// TooLarge measures a read the daemon refused to answer whole. A published read
+// pages rather than refuse (anam card 92), so there it is refused only for one facet
+// over the bound alone: FacetID names it, and a page refused so carries NextCursor,
+// the page after that facet.
 type TooLarge struct {
-	Matched  int      `json:"matched"`
-	Bytes    int      `json:"bytes"`
-	MaxBytes int      `json:"max_bytes"`
-	Narrow   []string `json:"narrow,omitempty"`
+	Matched    int      `json:"matched"`
+	Bytes      int      `json:"bytes"`
+	MaxBytes   int      `json:"max_bytes"`
+	Narrow     []string `json:"narrow,omitempty"`
+	FacetID    string   `json:"facet_id,omitempty"`
+	NextCursor string   `json:"next_cursor,omitempty"`
 }
 
 // errorBody is the body of every response that is not a success.

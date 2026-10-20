@@ -101,12 +101,13 @@ var capabilities = []string{
 	"projection: a read through a named projection, published with a receipt",
 	"fields: a read answered as a frame of only the payload fields named, JSON pointers from describe_type, a fraction of the size",
 	"query: a Datalog program run through a projection, joining facts across types and along time, answered as one relation with a receipt; describe_query gives the language, the relations and each type's pointers",
+	"pages: a published read too large for one answer is answered a page at a time; read_receipt follows page.next_cursor to the rest",
 	"verify: a receipt checked against the ledger and the stored artifact",
 }
 
 var limitations = []string{
 	"no counts or date ranges per type: coverage is found by reading, not by discovery",
-	"no paging: a read is answered whole or refused as too large, with what to narrow by",
+	"no paging without a projection: an unpublished read is answered whole or refused as too large, with what to narrow by",
 	"no single facet by reference: cite a read's receipt and the facet_id within it",
 	"no writes: nothing here records, corrects or retracts a fact",
 }
