@@ -160,6 +160,26 @@ func (c *Client) VerifyReceipt(ctx context.Context, hash string) (ReceiptVerifie
 	return v, err
 }
 
+// QueryCatalogue answers GET /v1/query: what a program is written against (anam
+// card 173).
+func (c *Client) QueryCatalogue(ctx context.Context) (QueryCatalogue, error) {
+	var cat QueryCatalogue
+	err := c.get(ctx, "/v1/query", nil, &cat)
+	return cat, err
+}
+
+// Query answers POST /v1/query: the program run through its projection, answered
+// with a receipt unless it is a dry run.
+func (c *Client) Query(ctx context.Context, q QueryRequest) (QueryAnswer, error) {
+	body, err := json.Marshal(q)
+	if err != nil {
+		return QueryAnswer{}, fmt.Errorf("anam: POST /v1/query: %w", err)
+	}
+	var a QueryAnswer
+	err = c.do(ctx, http.MethodPost, "/v1/query", nil, body, &a)
+	return a, err
+}
+
 func (c *Client) get(ctx context.Context, path string, q url.Values, out any) error {
 	return c.do(ctx, http.MethodGet, path, q, nil, out)
 }

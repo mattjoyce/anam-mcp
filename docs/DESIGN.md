@@ -35,6 +35,7 @@ Added at the first code commit, 2026-10-11, made without Matt (he asked for sens
 | Tests without a daemon | `ANAM_BIN` names the anam binary; `scripts/check.sh` builds one from `../anam` when unset. A plain `go test` without it skips the daemon tests and says so, rather than failing a checkout that has no Anam beside it |
 | Tool list caching | The SDK (v1.8.0) answers `tools/list` with `ttlMs: 0`, `cacheScope: public` and offers no setting for them. The long private TTL in §2 waits on the SDK |
 | Receipt URIs | `anam://receipts/{+hash}`: a hash is `sha256:<hex>`, and the reserved expansion is what lets the colon match |
+| The query (2026-10-19, anam card 173) | `query_record` sends the program to `POST /v1/query` and answers the relation's tuples, decoded like payloads, with the receipt the daemon filed; `describe_query` is `GET /v1/query` with one line on how to proceed. The adapter checks only what it can without parsing the program (a projection, a program, a relation, one knowledge pin); the daemon validates the program and its refusal, which says what to change, is the tool's error. The adapter evaluates nothing: the engine, the bundled rules and the equality with the fold are Anam's |
 
 ## 2. Protocol
 
@@ -93,8 +94,10 @@ summaries and references for further catalog pages.
 
 Built, 2026-10-11: `describe_record`, `describe_type`, `read_record` (timeline and snapshot, `as_of`,
 `watermark`, published through a projection) and `verify_receipt`, with the receipt resource of
-§4. 2026-10-12: `read_record` takes `fields` and answers a frame (anam card 138). The rest wait on
-their daemon operations (API-GAPS.md).
+§4. 2026-10-12: `read_record` takes `fields` and answers a frame (anam card 138). 2026-10-19:
+`describe_query` and `query_record` (anam card 173), the third read, a Datalog program through a
+projection with a receipt; the resource shows a query receipt's answer and `verify_receipt`
+replays it. The rest wait on their daemon operations (API-GAPS.md).
 
 Keep the everyday tool list small. Projection catalog, changes, explanation and receipt
 verification tools are added as the conversation scenarios need them. Operator tools (API §7) are
