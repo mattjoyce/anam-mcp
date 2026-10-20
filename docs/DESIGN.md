@@ -34,6 +34,7 @@ Added at the first code commit, 2026-10-11, made without Matt (he asked for sens
 | Fields and the frame (2026-10-12, anam card 138) | `read_record` takes `fields`, JSON pointers the model copies out of `describe_type`'s schema, and answers `frame` (columns, rows) with `evidence` empty, rather than reshaping the frame into entries: the daemon's shape is the one the receipt hashes, and a frame reads straight into a DataFrame. Cells are decoded like payloads, for the SDK's output schema. The adapter checks only that a field starts with `/`; the daemon checks it against the schema |
 | Tests without a daemon | `ANAM_BIN` names the anam binary; `scripts/check.sh` builds one from `../anam` when unset. A plain `go test` without it skips the daemon tests and says so, rather than failing a checkout that has no Anam beside it |
 | Tool list caching | The SDK (v1.8.0) answers `tools/list` with `ttlMs: 0`, `cacheScope: public` and offers no setting for them. The long private TTL in §2 waits on the SDK |
+| Paged reads (2026-10-21, anam cards 92 and 190) | A published read over the daemon's `max_read_bytes` answers its first page. `read_record` passes the daemon's `page` through and adds `page_notice`, a sentence that says the answer is partial, which facts it holds of how many, and the call that reads the next page, so a model that skims the numbers still reads the words. The next page is a new tool, `read_receipt` (`receipt_hash`, `cursor`), not a cursor on `read_record`: a cursor reads a filed artifact, never a new read, and `read_record`'s other arguments would mean nothing beside it. It keys on the receipt hash as `verify_receipt` does, and without a cursor it reads a receipt's first page, which the resource also shows but which a model cannot always reach. It is the `read_page` of §2's table under the name of what it reads. A 400 `cursor_invalid` and a 413 naming one facet are explained in the tool's error: what to pass instead, or the cursor that skips the facet. An unpublished read is still refused whole, and the refusal says a projection would page it |
 | Receipt URIs | `anam://receipts/{+hash}`: a hash is `sha256:<hex>`, and the reserved expansion is what lets the colon match |
 | The query (2026-10-19, anam card 173) | `query_record` sends the program to `POST /v1/query` and answers the relation's tuples, decoded like payloads, with the receipt the daemon filed; `describe_query` is `GET /v1/query` with one line on how to proceed. The adapter checks only what it can without parsing the program (a projection, a program, a relation, one knowledge pin); the daemon validates the program and its refusal, which says what to change, is the tool's error. The adapter evaluates nothing: the engine, the bundled rules and the equality with the fold are Anam's |
 
@@ -80,7 +81,7 @@ Recommended conversational tools. The application operations are defined in API 
 | `describe_record` | Discovery overview | Learn coverage, capabilities, projections, and limitations before choosing evidence |
 | `describe_type` | `GetFacetDefinition` | Learn the exact record shape and authoring requirements |
 | `read_record` | `ReadRecord` | Timeline versus snapshot; fact-time versus knowledge time; publishes evidence |
-| `read_page` | `ReadPage` | Continue the same immutable result |
+| `read_receipt` | `ReadPage` | Continue the same immutable result (planned as `read_page`; §1 says why) |
 | `get_evidence` | `GetEvidence` | Inspect an exact cited facet and available provenance |
 | `validate_assertion` | `ValidateAssertion` | Resolve missing/invalid fields without writing |
 | `log_assertion` | `SubmitAssertion` | Record an explicit user assertion; retry with the same submission ID |
@@ -99,7 +100,9 @@ Built, 2026-10-11: `describe_record`, `describe_type`, `read_record` (timeline a
 projection with a receipt; the resource shows a query receipt's answer and `verify_receipt`
 replays it. 2026-10-21: `describe_record` carries the coverage at its watermark, each type's count,
 fact-time range and sources (anam card 90), and still answers, with `coverage_error`, when the
-daemon cannot count. The rest wait on their daemon operations (API-GAPS.md).
+daemon cannot count; `read_receipt` reads a published read a page at a time, and `read_record`
+says when its answer is a first page (anam cards 92 and 190). The rest wait on their daemon
+operations (API-GAPS.md).
 
 Keep the everyday tool list small. Projection catalog, changes, explanation and receipt
 verification tools are added as the conversation scenarios need them. Operator tools (API §7) are

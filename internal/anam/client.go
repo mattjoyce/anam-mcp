@@ -27,6 +27,11 @@ const timeoutHeader = "Anam-Timeout"
 // configurable: the daemon sends it, and docs/API.md fixes it.
 const CodeTooLarge = "result_too_large"
 
+// CodeCursorInvalid is the daemon's code for a page asked for with a cursor the
+// receipt did not issue (400, anam card 92). Not configurable: the daemon sends it,
+// and docs/API.md fixes it.
+const CodeCursorInvalid = "cursor_invalid"
+
 // ErrUnreachable marks a call that never got an answer: the daemon is down, the
 // address is wrong, or the deadline passed first.
 var ErrUnreachable = errors.New("anam: server unreachable")
@@ -154,10 +159,15 @@ func (c *Client) Publish(ctx context.Context, q TimelineQuery) (Published, error
 	return p, err
 }
 
-// Receipt answers GET /v1/receipts/{hash}: the receipt and the entries it names.
-func (c *Client) Receipt(ctx context.Context, hash string) (ReceiptShown, error) {
+// Receipt answers GET /v1/receipts/{hash}: the receipt and the first page of the
+// entries it names, or with cursor, the page that cursor names.
+func (c *Client) Receipt(ctx context.Context, hash, cursor string) (ReceiptShown, error) {
+	var q url.Values
+	if cursor != "" {
+		q = url.Values{"cursor": {cursor}}
+	}
 	var r ReceiptShown
-	err := c.get(ctx, "/v1/receipts/"+url.PathEscape(hash), nil, &r)
+	err := c.get(ctx, "/v1/receipts/"+url.PathEscape(hash), q, &r)
 	return r, err
 }
 

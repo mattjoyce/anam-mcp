@@ -16,14 +16,16 @@ cards 157 and 177).
 |---|---|---|
 | `describe_record` | Whose record, ledger identity and watermark, time and zone, source freshness, every admitted type, each type's count, fact-time range and sources at the watermark (anam card 90), every projection a read may go through, what the server can and cannot do | Nothing |
 | `describe_type` | One type's Definition as published: JSON Schema with field descriptions, time semantics, identity, and the handling guidance every writer of the type agrees on | Nothing |
-| `read_record` | The timeline (narrowed by `from`, `to`, `type`) or a snapshot at a fact-time; `as_of` or `watermark` pin the knowledge; `fields` (JSON pointers) answers a frame of only those columns | With a `projection`, an immutable artifact and its receipt; without one, nothing, and the answer says so |
+| `read_record` | The timeline (narrowed by `from`, `to`, `type`) or a snapshot at a fact-time; `as_of` or `watermark` pin the knowledge; `fields` (JSON pointers) answers a frame of only those columns; a published read too large for one answer comes as its first page, with `page` and a `page_notice` that says it is partial | With a `projection`, an immutable artifact and its receipt; without one, nothing, and the answer says so |
 | `describe_query` | What a query program is written against: the syntax, the base relations and the `instant/1` parameter, the exact fact-time lexeme, each type's payload pointers at each Definition version, and the bundled rules (`current/2`, `displaced/2`) with their hash and text | Nothing |
 | `query_record` | A Datalog program run through a projection, built on the bundled rules, answered as one relation: joins across types and along time, selection by payload field, what was current at each instant the program names; a program that cannot run is refused with what to change | An immutable artifact (the answer) and its receipt, naming the projection, the rule set's hash and the program; `dry_run` files nothing |
+| `read_receipt` | A published read again by its receipt hash, a page at a time: without `cursor` the receipt and its first page, with a page's `next_cursor` the page after it, cut from the filed artifact and never a new read; another receipt's cursor is refused with what to pass instead | Nothing |
 | `verify_receipt` | Whether a receipt's artifact is intact and the ledger reproduces it, for a read's receipt or a query's | Nothing |
 | `save_note` | The person's words, verbatim and at once, as a `record.note` under the conversation's own source, naming the facets they are about or none, marked as asserted by them; words said now take the present moment and words relayed from earlier take `at`, never in the future; the same words at the same minute are one note, and a correction (`id` and `at`) is a new version | A note in the record |
 | `save_fact` | A fact the person asks to have recorded, as a facet of any type the daemon knows, under the conversation's own source and marked as asserted by them; the fields are the type's own, validated by the gate; the same fact again is a no-op and changed fields are a new version | A facet in the record |
 
-The resource `anam://receipts/{hash}` serves a published read by its receipt hash.
+The resource `anam://receipts/{hash}` serves a published read by its receipt hash: the receipt and
+its first page.
 
 - [docs/DESIGN.md](docs/DESIGN.md): decisions, tools, evidence handling, runtime, scenarios.
 - [docs/API-GAPS.md](docs/API-GAPS.md): what the adapter needs from Anam and does not have yet.
