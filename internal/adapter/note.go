@@ -13,9 +13,10 @@ import (
 	"github.com/mattjoyce/anam-mcp/internal/anam"
 )
 
-// noteType is the type save_note writes. Not configurable: the tool's description
-// and its answer describe this type, and the conversation token is scoped to it.
-const noteType = "record.note"
+// noteType is the type save_note writes: a note is an edge of kind about (anam
+// cards 104 and 191). Not configurable: the tool's description and its answer
+// describe this type, and the conversation token is scoped to it.
+const noteType = "record.edge"
 
 // noteIDPrefix starts the id of a note taken down in conversation. Not
 // configurable: the id is the note's identity, and the Definition documents this
@@ -106,8 +107,10 @@ func (a *Adapter) saveNote(ctx context.Context, _ *mcp.CallToolRequest, in SaveN
 		id = noteID(at, in.Text)
 	}
 	payload := map[string]any{"id": id, "at": at, "text": in.Text}
+	// The facets the words are about are the edge's to side; about is the name
+	// record.note v1 gave it, which the Definition still accepts.
 	if len(in.About) > 0 {
-		payload["about"] = in.About
+		payload["to"] = in.About
 	}
 	person, err := a.assertedPerson(ctx, "save_note")
 	if err != nil {

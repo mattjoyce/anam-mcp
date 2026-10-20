@@ -115,7 +115,7 @@ Annotations describe effects accurately; they do not enforce permissions.
 No MCP tool inserts a facet behind the gate. Writing was decided on anam card 93 (2026-10-15): a
 conversation is an importer like any other, posting envelopes under its own token, so the gate
 checks what it writes as it checks every source. `save_note` (card 157) is the first: the person's
-words, verbatim and at once, as a `record.note` under source `conversation`, which may name no
+words, verbatim and at once, as a `record.edge` under source `conversation`, which may name no
 facet yet. It guesses neither type nor time: the type is fixed, the time is the moment it is said,
 or, for words the person relays from earlier, the moment they say they said them (`at`, card 162),
 never in the future, written in the layout and zone the Definition declares. Its id is the moment
