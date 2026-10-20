@@ -14,7 +14,7 @@ cards 157 and 177).
 
 | Tool | What it does | What it publishes |
 |---|---|---|
-| `describe_record` | Whose record, ledger identity and watermark, time and zone, source freshness, every admitted type, every projection a read may go through, what the server can and cannot do | Nothing |
+| `describe_record` | Whose record, ledger identity and watermark, time and zone, source freshness, every admitted type, each type's count, fact-time range and sources at the watermark (anam card 90), every projection a read may go through, what the server can and cannot do | Nothing |
 | `describe_type` | One type's Definition as published: JSON Schema with field descriptions, time semantics, identity, and the handling guidance every writer of the type agrees on | Nothing |
 | `read_record` | The timeline (narrowed by `from`, `to`, `type`) or a snapshot at a fact-time; `as_of` or `watermark` pin the knowledge; `fields` (JSON pointers) answers a frame of only those columns | With a `projection`, an immutable artifact and its receipt; without one, nothing, and the answer says so |
 | `describe_query` | What a query program is written against: the syntax, the base relations and the `instant/1` parameter, the exact fact-time lexeme, each type's payload pointers at each Definition version, and the bundled rules (`current/2`, `displaced/2`) with their hash and text | Nothing |

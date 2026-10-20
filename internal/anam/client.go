@@ -119,6 +119,14 @@ func (c *Client) Projections(ctx context.Context) (Projections, error) {
 	return p, err
 }
 
+// Coverage answers GET /v1/coverage at watermark w: each type's live count,
+// fact-time range and sources.
+func (c *Client) Coverage(ctx context.Context, w int64) (Coverage, error) {
+	var cv Coverage
+	err := c.get(ctx, "/v1/coverage", url.Values{"w": {strconv.FormatInt(w, 10)}}, &cv)
+	return cv, err
+}
+
 // Definition answers GET /v1/definitions/{type} or, with version > 0,
 // /{type}/{version}: the manifest as published.
 func (c *Client) Definition(ctx context.Context, typ string, version int) (Definition, error) {
