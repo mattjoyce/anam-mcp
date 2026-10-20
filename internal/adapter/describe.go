@@ -14,8 +14,9 @@ var describeRecordTool = &mcp.Tool{
 	Title: "Describe the record",
 	Description: "Learn what the record holds before choosing what to read: whose record it is, its ledger identity and " +
 		"current watermark, the current time and the zone bare dates are read in, which sources the server has seen and " +
-		"when, every facet type it admits with its current definition version, every projection a read may go through " +
-		"(the names read_record takes), what this server can do, and what it cannot do yet. Call it first. It " +
+		"when, every facet type it admits with its current definition version, how many facts of each type the record " +
+		"holds with the earliest and latest fact-time and the sources they came from, every projection a read may go " +
+		"through (the names read_record takes), what this server can do, and what it cannot do yet. Call it first. It " +
 		"publishes nothing. Its answer is small: a few hundred bytes plus one line per source, per type and per projection.",
 	Annotations: readOnly(),
 }
@@ -49,6 +50,8 @@ type RecordDescription struct {
 	ServerSince  string              `json:"server_since,omitempty" jsonschema:"when the server started; source freshness below covers only what it has seen since"`
 	Sources      []SourceFreshness   `json:"sources" jsonschema:"each source whose importer has sent a batch since the server started, and when; a quiet source may be current without recent facts"`
 	Types        []TypeSummary       `json:"types" jsonschema:"every facet type the server admits"`
+	Coverage     []TypeCoverage      `json:"coverage" jsonschema:"each type the record holds at watermark: how many live facts, the earliest and latest fact-time, and each source's share; it says what is recorded, never that a source is complete or that a gap is a gap in the world"`
+	CoverageErr  string              `json:"coverage_error,omitempty" jsonschema:"why coverage is empty when the server could not count it; everything else here stands"`
 	Projections  []ProjectionSummary `json:"projections" jsonschema:"every projection a read may go through; read_record's projection takes one of these names"`
 	Capabilities []string            `json:"capabilities" jsonschema:"what this server can do"`
 	Limitations  []string            `json:"limitations" jsonschema:"what this server cannot do yet; do not work around these by other means"`
@@ -59,6 +62,23 @@ type SourceFreshness struct {
 	Source          string `json:"source"`
 	LastScanAt      string `json:"last_scan_at" jsonschema:"when this source's importer last sent a batch"`
 	LastAdmissionAt string `json:"last_admission_at,omitempty" jsonschema:"when a read of this source last changed the record; empty if none has since the server started"`
+}
+
+// TypeCoverage is one type's share of the record at the description's watermark.
+type TypeCoverage struct {
+	Type     string           `json:"type"`
+	Count    int              `json:"count" jsonschema:"live facts of this type"`
+	Earliest string           `json:"earliest" jsonschema:"the earliest fact-time, UTC"`
+	Latest   string           `json:"latest" jsonschema:"the latest fact-time, UTC"`
+	Sources  []SourceCoverage `json:"sources" jsonschema:"each source's share of this type"`
+}
+
+// SourceCoverage is what one source contributed to one type.
+type SourceCoverage struct {
+	Source   string `json:"source"`
+	Count    int    `json:"count"`
+	Earliest string `json:"earliest"`
+	Latest   string `json:"latest"`
 }
 
 // TypeSummary is one admitted type and the Definition versions held for it.
@@ -103,10 +123,10 @@ var capabilities = []string{
 	"query: a Datalog program run through a projection, joining facts across types and along time, answered as one relation with a receipt; describe_query gives the language, the relations and each type's pointers",
 	"pages: a published read too large for one answer is answered a page at a time; read_receipt follows page.next_cursor to the rest",
 	"verify: a receipt checked against the ledger and the stored artifact",
+	"coverage: each type's count, fact-time range and sources, in describe_record, at its watermark",
 }
 
 var limitations = []string{
-	"no counts or date ranges per type: coverage is found by reading, not by discovery",
 	"no paging without a projection: an unpublished read is answered whole or refused as too large, with what to narrow by",
 	"no single facet by reference: cite a read's receipt and the facet_id within it",
 	"no writes: nothing here records, corrects or retracts a fact",
@@ -165,7 +185,29 @@ func (a *Adapter) describeRecord(ctx context.Context, _ *mcp.CallToolRequest, _ 
 			Description: p.Description, Types: p.Types, Shape: p.Shape,
 		})
 	}
+	d.Coverage, d.CoverageErr = a.coverage(ctx, st.W)
 	return nil, d, nil
+}
+
+// coverage is the record's coverage at w, the watermark the description names, so
+// the counts and the rest of the description stand on one knowledge. Counting can be
+// a whole fold on the server; when it fails or runs out of time the description still
+// answers, with the coverage empty and the reason said.
+func (a *Adapter) coverage(ctx context.Context, w int64) ([]TypeCoverage, string) {
+	cv, err := a.client.Coverage(ctx, w)
+	if err != nil {
+		return []TypeCoverage{}, a.failed("coverage", err).Error()
+	}
+	out := make([]TypeCoverage, 0, len(cv.Types))
+	for _, t := range cv.Types {
+		tc := TypeCoverage{Type: t.Type, Count: t.Count, Earliest: t.Earliest, Latest: t.Latest,
+			Sources: make([]SourceCoverage, 0, len(t.Sources))}
+		for _, s := range t.Sources {
+			tc.Sources = append(tc.Sources, SourceCoverage{Source: s.Source, Count: s.Count, Earliest: s.Earliest, Latest: s.Latest})
+		}
+		out = append(out, tc)
+	}
+	return out, ""
 }
 
 func (a *Adapter) describeType(ctx context.Context, _ *mcp.CallToolRequest, in DescribeTypeInput) (*mcp.CallToolResult, TypeDescription, error) {

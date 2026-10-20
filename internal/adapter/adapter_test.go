@@ -4,6 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -157,6 +162,59 @@ func TestDescribeRecord(t *testing.T) {
 	}
 	if len(d.Limitations) == 0 || len(d.Capabilities) == 0 {
 		t.Error("a description says what it can and cannot do")
+	}
+}
+
+// Anam card 90: describe_record carries the coverage at its own watermark, so a
+// model learns how far back each type goes in the same call that lists the
+// projections.
+func TestDescribeRecordCarriesCoverage(t *testing.T) {
+	h := start(t, "")
+	var d adapter.RecordDescription
+	if err := call(context.Background(), h.session, "describe_record", nil, &d); err != nil {
+		t.Fatal(err)
+	}
+	// The June readings are Sydney wall-clock, held in UTC.
+	want := []adapter.TypeCoverage{{
+		Type: bpType, Count: 3, Earliest: "2026-06-02T20:30:00.000000000Z", Latest: "2026-06-26T20:30:00.000000000Z",
+		Sources: []adapter.SourceCoverage{{Source: bpSource, Count: 3,
+			Earliest: "2026-06-02T20:30:00.000000000Z", Latest: "2026-06-26T20:30:00.000000000Z"}},
+	}}
+	if d.CoverageErr != "" || !reflect.DeepEqual(d.Coverage, want) {
+		t.Fatalf("coverage = %+v (error %q), want %+v", d.Coverage, d.CoverageErr, want)
+	}
+	if len(d.Projections) == 0 {
+		t.Error("the same call lists the projections")
+	}
+}
+
+// Counting can be a whole fold on the server. When the coverage route fails, the
+// rest of the description still answers, and the coverage says why it is empty.
+func TestDescribeRecordStandsWithoutCoverage(t *testing.T) {
+	h := start(t, "")
+	target, err := url.Parse(h.daemon.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	proxy := httputil.NewSingleHostReverseProxy(target)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/coverage" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusGatewayTimeout)
+			_, _ = w.Write([]byte(`{"error": "context deadline exceeded"}`))
+			return
+		}
+		proxy.ServeHTTP(w, r)
+	}))
+	t.Cleanup(srv.Close)
+
+	var d adapter.RecordDescription
+	if err := call(context.Background(), connect(t, srv.URL, h.daemon.TokenFile, ""), "describe_record", nil, &d); err != nil {
+		t.Fatal(err)
+	}
+	if d.LedgerID == "" || len(d.Projections) == 0 || len(d.Coverage) != 0 ||
+		!strings.Contains(d.CoverageErr, "coverage: context deadline exceeded") {
+		t.Fatalf("description without coverage = %+v", d)
 	}
 }
 

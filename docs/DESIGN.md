@@ -98,9 +98,11 @@ Built, 2026-10-11: `describe_record`, `describe_type`, `read_record` (timeline a
 §4. 2026-10-12: `read_record` takes `fields` and answers a frame (anam card 138). 2026-10-19:
 `describe_query` and `query_record` (anam card 173), the third read, a Datalog program through a
 projection with a receipt; the resource shows a query receipt's answer and `verify_receipt`
-replays it. 2026-10-21: `read_receipt` reads a published read a page at a time, and
-`read_record` says when its answer is a first page (anam cards 92 and 190). The rest wait on their
-daemon operations (API-GAPS.md).
+replays it. 2026-10-21: `describe_record` carries the coverage at its watermark, each type's count,
+fact-time range and sources (anam card 90), and still answers, with `coverage_error`, when the
+daemon cannot count; `read_receipt` reads a published read a page at a time, and `read_record`
+says when its answer is a first page (anam cards 92 and 190). The rest wait on their daemon
+operations (API-GAPS.md).
 
 Keep the everyday tool list small. Projection catalog, changes, explanation and receipt
 verification tools are added as the conversation scenarios need them. Operator tools (API §7) are

@@ -38,7 +38,33 @@ type DefinitionSummary struct {
 	Versions []int  `json:"versions"`
 }
 
-// Projections is the answer to GET /v1/projections (anam card 125).
+// Coverage is the answer to GET /v1/coverage (anam card 90): what the record holds
+// at W, type by type. It says what is recorded, never that a source is complete.
+type Coverage struct {
+	W        int64          `json:"w"`
+	LedgerID string         `json:"ledger_id"`
+	Live     int            `json:"live"`
+	Types    []TypeCoverage `json:"types"`
+}
+
+// TypeCoverage is one type's live count and fact-time range, and each source's share.
+type TypeCoverage struct {
+	Type     string           `json:"type"`
+	Count    int              `json:"count"`
+	Earliest string           `json:"earliest"`
+	Latest   string           `json:"latest"`
+	Sources  []SourceCoverage `json:"sources"`
+}
+
+// SourceCoverage is what one source contributed to one type.
+type SourceCoverage struct {
+	Source   string `json:"source"`
+	Count    int    `json:"count"`
+	Earliest string `json:"earliest"`
+	Latest   string `json:"latest"`
+}
+
+// Projections is the answer to GET /v1/projections.
 type Projections struct {
 	Projections []ProjectionSummary `json:"projections"`
 }
