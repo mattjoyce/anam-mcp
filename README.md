@@ -8,9 +8,9 @@ It is a client of Anam's service API and nothing more: it calls the daemon over 
 holds no state worth recovering, and offers only tools whose operations the daemon implements. The
 API contract is `docs/API.md` in the anam repo.
 
-Status: six reading tools and one resource, over what the daemon serves today, and two writing
-tools, `save_note` and `save_fact`, offered only when `ANAM_MCP_NOTE_TOKEN_FILE` is set (anam
-cards 157 and 177).
+Status: six reading tools and one resource, over what the daemon serves today; two selection tools,
+`save_selection` and `open_selection` (anam card 206); and two writing tools, `save_note` and
+`save_fact`, offered only when `ANAM_MCP_NOTE_TOKEN_FILE` is set (anam cards 157 and 177).
 
 | Tool | What it does | What it publishes |
 |---|---|---|
@@ -21,6 +21,8 @@ cards 157 and 177).
 | `query_record` | A Datalog program run through a projection, built on the bundled rules, answered as one relation: joins across types and along time, selection by payload field, what was current at each instant the program names; a program that cannot run is refused with what to change | An immutable artifact (the answer) and its receipt, naming the projection, the rule set's hash and the program; `dry_run` files nothing |
 | `read_receipt` | A published read again by its receipt hash, a page at a time: without `cursor` the receipt and its first page, with a page's `next_cursor` the page after it, cut from the filed artifact and never a new read; another receipt's cursor is refused with what to pass instead | Nothing |
 | `verify_receipt` | Whether a receipt's artifact is intact and the ledger reproduces it, for a read's receipt or a query's | Nothing |
+| `save_selection` | A selection program (one defining `pick/1`) filed under its short code, `sel:` and eight hex digits, the program's own hash: the same program always gets the same code. Answers the code and the addresses of the person's timeline, highlighted timeline and select page at it | The program, as an artifact; never a fact |
+| `open_selection` | A code back to its program and the facets it picks now, through a named projection, each with its id, type and fact time; an unknown code is an error, never an empty selection | Nothing: the run is a dry run, and `query_record` with relation `pick` gives the receipted answer |
 | `save_note` | The person's words, verbatim and at once, as a `record.edge` under the conversation's own source, naming the facets they are about or none, marked as asserted by them; words said now take the present moment and words relayed from earlier take `at`, never in the future; the same words at the same minute are one note, and a correction (`id` and `at`) is a new version | A note in the record |
 | `save_fact` | A fact the person asks to have recorded, as a facet of any type the daemon knows, under the conversation's own source and marked as asserted by them; the fields are the type's own, validated by the gate; the same fact again is a no-op and changed fields are a new version | A facet in the record |
 

@@ -124,12 +124,13 @@ var capabilities = []string{
 	"pages: a published read too large for one answer is answered a page at a time; read_receipt follows page.next_cursor to the rest",
 	"verify: a receipt checked against the ledger and the stored artifact",
 	"coverage: each type's count, fact-time range and sources, in describe_record, at its watermark",
+	"selections: a program defining pick/1 saved under a short code, sel:<code>, that the person's timeline, select page and link form open; open_selection reads a code back to its program and the facets it picks now",
 }
 
 var limitations = []string{
 	"no paging without a projection: an unpublished read is answered whole or refused as too large, with what to narrow by",
 	"no single facet by reference: cite a read's receipt and the facet_id within it",
-	"no writes: nothing here records, corrects or retracts a fact",
+	"no writes: nothing here records, corrects or retracts a fact; save_selection files a program, never a fact",
 }
 
 // noteCapability, factCapability and writeLimitation replace the last limitation

@@ -267,6 +267,20 @@ type ReceiptShown struct {
 	Page   *Page   `json:"page,omitempty"`
 }
 
+// SelectionRequest is POST /v1/selections's body (anam card 206).
+type SelectionRequest struct {
+	Program string `json:"program"`
+}
+
+// Selection is a saved selection: its short code, the hash of the program as saved,
+// the timeline's path to it on the daemon, and the program.
+type Selection struct {
+	Code    string `json:"code"`
+	Hash    string `json:"hash"`
+	URL     string `json:"url"`
+	Program string `json:"program"`
+}
+
 // QueryRequest is a Datalog query as POST /v1/query takes it (anam card 173).
 type QueryRequest struct {
 	Projection string `json:"projection"`
