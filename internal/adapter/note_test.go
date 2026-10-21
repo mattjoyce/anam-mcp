@@ -42,7 +42,11 @@ func startNotes(t *testing.T) (*Daemon, *mcp.ClientSession) {
 		t.Fatal(err)
 	}
 	now := func() time.Time { return time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC) }
-	server := adapter.New(client, time.UTC, now, "test").WithNotes(notes).Server()
+	sydney, err := time.LoadLocation("Australia/Sydney")
+	if err != nil {
+		t.Fatal(err)
+	}
+	server := adapter.New(client, sydney, now, "test").WithNotes(notes).Server()
 	return d, session(t, server)
 }
 
