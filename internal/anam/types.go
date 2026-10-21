@@ -99,6 +99,11 @@ type DefinitionMeta struct {
 	DefinitionVersion int           `json:"definition_version"`
 	Classification    string        `json:"classification,omitempty"`
 	TimeSemantics     TimeSemantics `json:"time_semantics"`
+	// IdentityKey and IdentityTemplate say how the facet's id is made. A type with a
+	// template has its id field composed by the gate from the rest (anam card 188),
+	// so a writer may leave it out.
+	IdentityKey      []string `json:"identity_key,omitempty"`
+	IdentityTemplate string   `json:"identity_template,omitempty"`
 }
 
 // TimeSemantics says where a type's fact time is in the payload and how it is
@@ -113,6 +118,10 @@ type FactTime struct {
 	Pointer string `json:"pointer"`
 	Layout  string `json:"layout"`
 	Zone    string `json:"zone"`
+	// ZonePointer, when set, is where the payload names the zone its wall clock was
+	// said in (anam card 198): source_time's offset for the self-report types. A
+	// payload that names one is read in it, not in Zone.
+	ZonePointer string `json:"zone_pointer,omitempty"`
 }
 
 // TimelineQuery is a timeline read as the reader asks for it. It travels as URL

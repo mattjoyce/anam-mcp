@@ -46,7 +46,8 @@ type SaveNoteInput struct {
 	Text  string   `json:"text" jsonschema:"the person's words, verbatim, as they said or typed them to you"`
 	About []string `json:"about,omitempty" jsonschema:"facet ids the words are about, from a read_record answer; leave out when they name nothing in the record"`
 	ID    string   `json:"id,omitempty" jsonschema:"to correct a note saved before, the id save_note answered; leave out for a new note"`
-	At    string   `json:"at,omitempty" jsonschema:"when the words were said, in the layout and zone save_note answers with (a Sydney wall clock to the minute, for example 2026-10-14 21:30): left out for words said just now, which take the present moment; given for words the person relays from earlier, never in the future; required with id, as save_note answered it"`
+	At    string   `json:"at,omitempty" jsonschema:"when the words were said, a wall clock to the minute in the layout save_note answers with (for example 2026-10-14 21:30), in the zone passed or else the zone save_note answers with: left out for words said just now, which take the present moment; given for words the person relays from earlier, never in the future; required with id, as save_note answered it"`
+	Zone  string   `json:"zone,omitempty" jsonschema:"the zone the person is in, as your client knows it: an IANA name (Europe/London) or an offset (+01:00); pass it whenever you know it, and the same zone with id when correcting; left out, the server's own zone is used"`
 }
 
 // SaveNoteOutput is what save_note answers: the note as saved, and what became of it.
@@ -55,6 +56,8 @@ type SaveNoteOutput struct {
 	ID      string   `json:"id" jsonschema:"the note's id; pass it with at to correct the note"`
 	At      string   `json:"at" jsonschema:"when the words were said, in the zone named"`
 	Zone    string   `json:"zone"`
+	Offset  string   `json:"offset,omitempty" jsonschema:"the offset from UTC at had in zone"`
+	Basis   string   `json:"basis,omitempty" jsonschema:"source when the zone came from the client, configuration when it is the server's own"`
 	Text    string   `json:"text"`
 	About   []string `json:"about,omitempty"`
 	FacetID string   `json:"facet_id"`
@@ -80,33 +83,41 @@ func (a *Adapter) saveNote(ctx context.Context, _ *mcp.CallToolRequest, in SaveN
 		return nil, SaveNoteOutput{}, fmt.Errorf("save_note: the daemon's %s v%d places a note by %q, which this build does not write",
 			noteType, d.Meta.DefinitionVersion, ft.Pointer)
 	}
-	loc, err := time.LoadLocation(ft.Zone)
+	c, err := a.noteClock(d, in.Zone)
 	if err != nil {
-		return nil, SaveNoteOutput{}, fmt.Errorf("save_note: the %s Definition's zone %q: %w", noteType, ft.Zone, err)
+		return nil, SaveNoteOutput{}, fmt.Errorf("save_note: %w", err)
 	}
 	// Words said now take the present moment; words relayed from earlier take the
-	// moment given (card 162). Either way the moment is the person's, in the
-	// Definition's zone, and it cannot be ahead of now: words are not said before
-	// they are saved, and a future at would be a guess, not a time the person gave.
-	now := a.now().In(loc)
-	at := in.At
+	// moment given (card 162). Either way the moment is the person's, in their zone,
+	// and it cannot be ahead of now: words are not said before they are saved, and a
+	// future at would be a guess, not a time the person gave.
+	now := a.now().In(c.loc)
+	at, said := in.At, now
 	if at == "" {
 		at = now.Format(ft.Layout)
+		said = now.Truncate(time.Minute) // the present minute, whose offset is now's, even in a repeated hour
 	} else {
-		said, err := time.ParseInLocation(ft.Layout, at, loc)
-		if err != nil {
-			return nil, SaveNoteOutput{}, fmt.Errorf("save_note: at %q: want the layout %s, in %s", at, ft.Layout, ft.Zone)
+		if said, err = time.ParseInLocation(ft.Layout, at, c.loc); err != nil {
+			return nil, SaveNoteOutput{}, fmt.Errorf("save_note: at %q: want the layout %s, in %s", at, ft.Layout, c.name)
+		}
+		if said, err = c.instant(ft.Layout, at); err != nil {
+			return nil, SaveNoteOutput{}, fmt.Errorf("save_note: at %w", err)
 		}
 		if said.After(now) {
 			return nil, SaveNoteOutput{}, fmt.Errorf("save_note: at %q is in the future (it is %s in %s); at is when the words were said, never later than now",
-				at, now.Format(ft.Layout), ft.Zone)
+				at, now.Format(ft.Layout), c.name)
 		}
 	}
+	zoned := ft.ZonePointer == offsetPointer
+	offset := said.Format("-07:00")
 	id := in.ID
 	if id == "" {
-		id = noteID(at, in.Text)
+		id = noteID(at, offset, zoned, in.Text)
 	}
 	payload := map[string]any{"id": id, "at": at, "text": in.Text}
+	if zoned {
+		payload[sourceTimeField] = c.sourceTime(at, said)
+	}
 	// The facets the words are about are the edge's to side; about is the name
 	// record.note v1 gave it, which the Definition still accepts.
 	if len(in.About) > 0 {
@@ -128,23 +139,57 @@ func (a *Adapter) saveNote(ctx context.Context, _ *mcp.CallToolRequest, in SaveN
 		return nil, SaveNoteOutput{}, fmt.Errorf("save_note: the daemon answered %d outcomes for one note", len(s.Results))
 	}
 	r := s.Results[0]
-	out := SaveNoteOutput{Outcome: r.Outcome, ID: id, At: at, Zone: ft.Zone, Text: in.Text, About: in.About, FacetID: r.FacetID, W: s.W}
+	out := SaveNoteOutput{Outcome: r.Outcome, ID: id, At: at, Zone: c.name, Text: in.Text, About: in.About, FacetID: r.FacetID, W: s.W}
+	if zoned {
+		out.Offset, out.Basis = offset, c.basis
+	}
 	switch r.Outcome {
 	case "superseded":
 		out.Saved = fmt.Sprintf("Corrected your note of %s; the earlier words are kept as its previous version.", at)
 	case "no-op":
 		out.Saved = fmt.Sprintf("Already saved, unchanged: your note of %s.", at)
 	default:
-		out.Saved = fmt.Sprintf("Saved your words as a note at %s (%s).", at, ft.Zone)
+		out.Saved = fmt.Sprintf("Saved your words as a note at %s (%s).", at, c.name)
 	}
 	return nil, out, nil
 }
 
 // noteID names a note taken down in conversation by the moment and the words, so
-// the same words sent twice are one note.
-func noteID(at, text string) string {
-	sum := sha256.Sum256([]byte(at + "\n" + text))
+// the same words sent twice are one note. Under a Definition that reads the zone
+// (anam card 198) the moment is the wall clock and its offset, so the same words at
+// one local minute in two zones are two notes; before it, the wall clock alone, as
+// every note saved before was named.
+func noteID(at, offset string, zoned bool, text string) string {
+	moment := at
+	if zoned {
+		moment += " " + offset
+	}
+	sum := sha256.Sum256([]byte(moment + "\n" + text))
 	return noteIDPrefix + hex.EncodeToString(sum[:8])
+}
+
+// noteClock is the zone a note is written in. A Definition that reads the offset from
+// the note takes the person's zone, or this server's; one from before anam card 198
+// reads every note in its own zone, so a zone other than that is refused rather than
+// placed hours away.
+func (a *Adapter) noteClock(d anam.Definition, zone string) (writerClock, error) {
+	ft := d.Meta.TimeSemantics.FactTime
+	if ft.ZonePointer == offsetPointer {
+		return a.clockFor(zone)
+	}
+	if ft.ZonePointer != "" {
+		return writerClock{}, fmt.Errorf("the daemon's %s v%d reads its zone at %s, which this build does not write",
+			d.Meta.FacetType, d.Meta.DefinitionVersion, ft.ZonePointer)
+	}
+	loc, err := time.LoadLocation(ft.Zone)
+	if err != nil {
+		return writerClock{}, fmt.Errorf("the %s Definition's zone %q: %w", d.Meta.FacetType, ft.Zone, err)
+	}
+	if z := strings.TrimSpace(zone); z != "" && z != ft.Zone {
+		return writerClock{}, fmt.Errorf("the daemon's %s v%d reads every time in %s and cannot take zone %s; "+
+			"leave zone out, or update the daemon", d.Meta.FacetType, d.Meta.DefinitionVersion, ft.Zone, z)
+	}
+	return writerClock{loc: loc, name: ft.Zone, basis: "assumption"}, nil
 }
 
 // writesOnce marks a tool that adds to the record and destroys nothing, and that
