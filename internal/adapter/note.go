@@ -97,7 +97,7 @@ func (a *Adapter) saveNote(ctx context.Context, _ *mcp.CallToolRequest, in SaveN
 		at = now.Format(ft.Layout)
 		said = now.Truncate(time.Minute) // the present minute, whose offset is now's, even in a repeated hour
 	} else {
-		if said, err = time.ParseInLocation(ft.Layout, at, c.loc); err != nil {
+		if _, err := time.ParseInLocation(ft.Layout, at, c.loc); err != nil {
 			return nil, SaveNoteOutput{}, fmt.Errorf("save_note: at %q: want the layout %s, in %s", at, ft.Layout, c.name)
 		}
 		if said, err = c.instant(ft.Layout, at); err != nil {
