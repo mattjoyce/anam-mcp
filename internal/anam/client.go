@@ -198,6 +198,25 @@ func (c *Client) Query(ctx context.Context, q QueryRequest) (QueryAnswer, error)
 	return a, err
 }
 
+// SaveSelection answers POST /v1/selections: the program filed under its short code
+// (anam card 206). It writes an artifact only, so any role may call it.
+func (c *Client) SaveSelection(ctx context.Context, program string) (Selection, error) {
+	body, err := json.Marshal(SelectionRequest{Program: program})
+	if err != nil {
+		return Selection{}, fmt.Errorf("anam: POST /v1/selections: %w", err)
+	}
+	var s Selection
+	err = c.do(ctx, http.MethodPost, "/v1/selections", nil, body, &s)
+	return s, err
+}
+
+// Selection answers GET /v1/selections/{code}: the program a code names.
+func (c *Client) Selection(ctx context.Context, code string) (Selection, error) {
+	var s Selection
+	err := c.get(ctx, "/v1/selections/"+url.PathEscape(code), nil, &s)
+	return s, err
+}
+
 func (c *Client) get(ctx context.Context, path string, q url.Values, out any) error {
 	return c.do(ctx, http.MethodGet, path, q, nil, out)
 }
