@@ -52,7 +52,7 @@ type RecordDescription struct {
 	Types        []TypeSummary       `json:"types" jsonschema:"every facet type the server admits"`
 	Coverage     []TypeCoverage      `json:"coverage" jsonschema:"each type the record holds at watermark: how many live facts, the earliest and latest fact-time, and each source's share; it says what is recorded, never that a source is complete or that a gap is a gap in the world"`
 	CoverageErr  string              `json:"coverage_error,omitempty" jsonschema:"why coverage is empty when the server could not count it; everything else here stands"`
-	Projections  []ProjectionSummary `json:"projections" jsonschema:"every projection a read may go through; read_record's projection takes one of these names"`
+	Projections  []ProjectionSummary `json:"projections" jsonschema:"every projection a read may go through; read_record's projection takes one of these names, and so does query_record's unless it writes its own with projection_inline"`
 	Capabilities []string            `json:"capabilities" jsonschema:"what this server can do"`
 	Limitations  []string            `json:"limitations" jsonschema:"what this server cannot do yet; do not work around these by other means"`
 }
@@ -120,7 +120,7 @@ var capabilities = []string{
 	"watermark: a read pinned to a ledger position a receipt names, so two reads see the same knowledge",
 	"projection: a read through a named projection, published with a receipt",
 	"fields: a read answered as a frame of only the payload fields named, JSON pointers from describe_type, a fraction of the size",
-	"query: a Datalog program run through a projection, joining facts across types and along time, answered as one relation with a receipt; describe_query gives the language, the relations and each type's pointers",
+	"query: a Datalog program run through a projection (a listed one by name, or one written in the call with projection_inline when none covers the question), joining facts across types and along time, answered as one relation with a receipt; describe_query gives the language, the relations and each type's pointers",
 	"pages: a published read too large for one answer is answered a page at a time; read_receipt follows page.next_cursor to the rest",
 	"verify: a receipt checked against the ledger and the stored artifact",
 	"coverage: each type's count, fact-time range and sources, in describe_record, at its watermark",

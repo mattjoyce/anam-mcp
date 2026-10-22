@@ -149,7 +149,9 @@ func TestQueryRefusals(t *testing.T) {
 		args map[string]any
 		want string
 	}{
-		{"no projection", map[string]any{"projection": "", "program": highProgram, "relation": "high"}, "projection is required"},
+		{"no projection", map[string]any{"program": highProgram, "relation": "high"}, "send projection (a name describe_record lists) or projection_inline"},
+		{"both projections", map[string]any{"projection": bpProjection, "projection_inline": inlineBP(), "program": highProgram, "relation": "high"}, "not both"},
+		{"bad inline", map[string]any{"projection_inline": map[string]any{"types": []string{bpType}, "statuses": []string{"admitted"}, "max_classification": "Secret"}, "program": highProgram, "relation": "high"}, "max_classification"},
 		{"no program", map[string]any{"projection": bpProjection, "program": " ", "relation": "high"}, "program is required"},
 		{"no relation", map[string]any{"projection": bpProjection, "program": highProgram, "relation": ""}, "relation is required"},
 		{"two pins", map[string]any{"projection": bpProjection, "program": highProgram, "relation": "high", "as_of": "2026-06-01", "watermark": 1}, "send one"},
@@ -167,5 +169,62 @@ func TestQueryRefusals(t *testing.T) {
 				t.Fatalf("got %v, want an error mentioning %q", err, c.want)
 			}
 		})
+	}
+}
+
+// inlineBP is the blood-pressure projection, written in the call.
+func inlineBP() map[string]any {
+	return map[string]any{
+		"types": []string{bpType}, "statuses": []string{"admitted", "endorsed"},
+		"max_classification": "Sensitive", "shape": "log",
+	}
+}
+
+// TestQueryInlineProjection asks the same question as TestQueryRecord with no
+// projection named: the types travel in the call, the answer is the same tuples,
+// the projection reads as inline v1, and the receipt verifies. A named projection
+// asked beside it still answers as before.
+func TestQueryInlineProjection(t *testing.T) {
+	h := start(t, "")
+	ctx := context.Background()
+	var named adapter.QueryOutput
+	if err := call(ctx, h.session, "query_record", map[string]any{"projection": bpProjection, "program": highProgram, "relation": "high", "dry_run": true}, &named); err != nil {
+		t.Fatal(err)
+	}
+	if named.Projection.Name != bpProjection || named.Projection.Inline || named.Receipt.TemplateInline {
+		t.Errorf("a named projection reads as %+v, receipt inline %v", named.Projection, named.Receipt.TemplateInline)
+	}
+
+	args := map[string]any{"projection_inline": inlineBP(), "program": highProgram, "relation": "high"}
+	var q adapter.QueryOutput
+	if err := call(ctx, h.session, "query_record", args, &q); err != nil {
+		t.Fatal(err)
+	}
+	if q.Count != 2 || !q.Published || q.ReceiptHash == "" || q.Receipt == nil {
+		t.Fatalf("query = %+v", q)
+	}
+	if q.Projection.Name != "inline" || q.Projection.Version != 1 || !q.Projection.Inline || q.Projection.Served != 3 || !q.Receipt.TemplateInline {
+		t.Errorf("projection %+v, receipt inline %v; want inline v1 serving 3, marked template_inline", q.Projection, q.Receipt.TemplateInline)
+	}
+	if q.Hash != named.Hash || !strings.Contains(q.Citation, "inline projection") {
+		t.Errorf("answer hash %s, named %s; citation %q", q.Hash, named.Hash, q.Citation)
+	}
+	var v adapter.VerifyOutput
+	if err := call(ctx, h.session, "verify_receipt", map[string]any{"receipt_hash": q.ReceiptHash}, &v); err != nil {
+		t.Fatal(err)
+	}
+	if !v.Reproduced || !v.Intact {
+		t.Errorf("an inline query receipt did not verify: %+v", v)
+	}
+
+	// A window in the call narrows what it serves.
+	narrow := inlineBP()
+	narrow["from"] = "2026-06-10T00:00:00.000000000Z"
+	var w adapter.QueryOutput
+	if err := call(ctx, h.session, "query_record", map[string]any{"projection_inline": narrow, "program": highProgram, "relation": "high", "dry_run": true}, &w); err != nil {
+		t.Fatal(err)
+	}
+	if w.Projection.Served >= 3 {
+		t.Errorf("from in the call served %d facets, want fewer than 3", w.Projection.Served)
 	}
 }
