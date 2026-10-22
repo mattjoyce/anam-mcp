@@ -88,6 +88,7 @@ type ProjectionRead struct {
 	Version int    `json:"version"`
 	Served  int    `json:"served" jsonschema:"how many facets the projection served before narrowing"`
 	Hash    string `json:"hash" jsonschema:"the served value's hash, the one a receipt records"`
+	Inline  bool   `json:"inline,omitempty" jsonschema:"true when the query carried the projection itself (projection_inline): the name is then inline, version 1, and the receipt is marked template_inline"`
 }
 
 // Evidence is one entry as the model sees it: identity, provenance and payload.
