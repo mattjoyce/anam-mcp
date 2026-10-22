@@ -1,6 +1,10 @@
 package anam
 
-import "encoding/json"
+import (
+	"bytes"
+	"encoding/json"
+	"errors"
+)
 
 // The values the daemon's /v1 routes answer with, as the adapter reads them. They
 // mirror the anam repo's internal/api package field for field; the adapter cannot
@@ -228,6 +232,10 @@ type Receipt struct {
 	// TemplateHash is the content hash of the template version that pruned the
 	// value (anam card 125); receipts from before 2026-10-13 have none.
 	TemplateHash string `json:"template_hash,omitempty"`
+	// TemplateInline is true when the template was an inline projection a query
+	// carried (anam card 211): Template is then "inline", TemplateVersion 1, and
+	// TemplateHash the address of the body filed beside the receipt.
+	TemplateInline bool `json:"template_inline,omitempty"`
 	// Program is the query a receipt answers (anam card 173): the template is then
 	// the projection the query ran through and ServedHash the answer's. Nil for a
 	// timeline receipt.
@@ -283,13 +291,74 @@ type Selection struct {
 
 // QueryRequest is a Datalog query as POST /v1/query takes it (anam card 173).
 type QueryRequest struct {
-	Projection string `json:"projection"`
-	Text       string `json:"text"`
-	Relation   string `json:"relation"`
-	AsOf       string `json:"as_of,omitempty"`
-	W          int64  `json:"w,omitempty"`
-	DryRun     bool   `json:"dry_run,omitempty"`
-	Zone       string `json:"zone,omitempty"`
+	Projection ProjectionRef `json:"projection"`
+	Text       string        `json:"text"`
+	Relation   string        `json:"relation"`
+	AsOf       string        `json:"as_of,omitempty"`
+	W          int64         `json:"w,omitempty"`
+	DryRun     bool          `json:"dry_run,omitempty"`
+	Zone       string        `json:"zone,omitempty"`
+}
+
+// InlineProjection is a projection template a query carries itself (anam card 211):
+// the fields of a manifest without its name, version and description. The daemon's
+// loader checks it, so a mistake comes back as a 400 naming the field.
+type InlineProjection struct {
+	Types             []string `json:"types"`
+	Statuses          []string `json:"statuses"`
+	MaxClassification string   `json:"max_classification"`
+	From              string   `json:"from,omitempty"`
+	To                string   `json:"to,omitempty"`
+	Shape             string   `json:"shape,omitempty"`
+}
+
+// ProjectionRef is how a query says which projection it reads through: a name, which
+// travels as a JSON string, or an InlineProjection, which travels as an object. It
+// mirrors the daemon's reference; it holds one of the two.
+type ProjectionRef struct {
+	Name   string
+	Inline *InlineProjection
+}
+
+// Named is a reference to the projection called name.
+func Named(name string) ProjectionRef { return ProjectionRef{Name: name} }
+
+// IsZero reports whether r names no projection.
+func (r ProjectionRef) IsZero() bool { return r.Name == "" && r.Inline == nil }
+
+// MarshalJSON writes a name as a string and an inline template as its object.
+func (r ProjectionRef) MarshalJSON() ([]byte, error) {
+	switch {
+	case r.Name != "" && r.Inline != nil:
+		return nil, errors.New("a projection is named or inline, not both")
+	case r.Inline != nil:
+		return json.Marshal(r.Inline)
+	}
+	return json.Marshal(r.Name)
+}
+
+// UnmarshalJSON reads a name from a string and an inline template from an object.
+func (r *ProjectionRef) UnmarshalJSON(b []byte) error {
+	b = bytes.TrimSpace(b)
+	switch {
+	case bytes.Equal(b, []byte("null")):
+		*r = ProjectionRef{}
+	case len(b) > 0 && b[0] == '"':
+		var name string
+		if err := json.Unmarshal(b, &name); err != nil {
+			return err
+		}
+		*r = ProjectionRef{Name: name}
+	case len(b) > 0 && b[0] == '{':
+		var in InlineProjection
+		if err := json.Unmarshal(b, &in); err != nil {
+			return err
+		}
+		*r = ProjectionRef{Inline: &in}
+	default:
+		return errors.New("a projection is a name (a string) or an inline template (an object)")
+	}
+	return nil
 }
 
 // Answer is a query's answer: one relation's tuples, sorted. A cell is a JSON

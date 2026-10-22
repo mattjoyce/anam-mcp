@@ -121,7 +121,7 @@ func (a *Adapter) openSelection(ctx context.Context, _ *mcp.CallToolRequest, in 
 		return nil, OpenSelectionOutput{}, a.failed("open_selection", err)
 	}
 	ans, err := a.client.Query(ctx, anam.QueryRequest{
-		Projection: in.Projection, Text: s.Program + selectionRule, Relation: selectionRelation, DryRun: true, Zone: a.zone.String(),
+		Projection: anam.Named(in.Projection), Text: s.Program + selectionRule, Relation: selectionRelation, DryRun: true, Zone: a.zone.String(),
 	})
 	if err != nil {
 		return nil, OpenSelectionOutput{}, a.failed("open_selection: running "+s.Code, err)
