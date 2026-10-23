@@ -486,3 +486,41 @@ func TestDescribeRecordListsProjections(t *testing.T) {
 		}
 	}
 }
+
+// Anam card 180: describe_record names the operator's default projection and says to
+// read it first; with none set it says nothing of the kind. The default is advice: a
+// read that names another projection is still served.
+func TestDescribeRecordNamesTheDefaultProjection(t *testing.T) {
+	ctx := context.Background()
+
+	none := start(t, "")
+	var d adapter.RecordDescription
+	if err := call(ctx, none.session, "describe_record", nil, &d); err != nil {
+		t.Fatal(err)
+	}
+	if d.DefaultProjection != "" || d.ReadFirst != "" {
+		t.Errorf("no default is set, but describe_record says %q / %q", d.DefaultProjection, d.ReadFirst)
+	}
+
+	dm := startDaemon(t, bpSource, []string{bpType}, "ANAM_DEFAULT_PROJECTION=bp")
+	session := connect(t, dm.URL, dm.TokenFile, "")
+	d = adapter.RecordDescription{}
+	if err := call(ctx, session, "describe_record", nil, &d); err != nil {
+		t.Fatal(err)
+	}
+	if d.DefaultProjection != "bp" {
+		t.Errorf("default_projection = %q, want bp", d.DefaultProjection)
+	}
+	for _, want := range []string{`"bp"`, "first", "read_record"} {
+		if !strings.Contains(d.ReadFirst, want) {
+			t.Errorf("read_first %q lacks %q", d.ReadFirst, want)
+		}
+	}
+	listed := false
+	for _, p := range d.Projections {
+		listed = listed || p.Name == "bp"
+	}
+	if !listed {
+		t.Errorf("the default bp is not among the projections listed: %+v", d.Projections)
+	}
+}
