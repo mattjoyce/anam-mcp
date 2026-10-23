@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/mattjoyce/anam-mcp/internal/anam"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -16,7 +17,7 @@ var describeRecordTool = &mcp.Tool{
 		"current watermark, the current time and the zone bare dates are read in, which sources the server has seen and " +
 		"when, every facet type it admits with its current definition version, how many facts of each type the record " +
 		"holds with the earliest and latest fact-time and the sources they came from, every projection a read may go " +
-		"through (the names read_record takes), what this server can do, and what it cannot do yet. Call it first. It " +
+		"through (the names read_record takes), the projection the operator advises reading first when one is set, what this server can do, and what it cannot do yet. Call it first. It " +
 		"publishes nothing. Its answer is small: a few hundred bytes plus one line per source, per type and per projection.",
 	Annotations: readOnly(),
 }
@@ -40,21 +41,23 @@ type DescribeTypeInput struct {
 
 // RecordDescription is what describe_record answers.
 type RecordDescription struct {
-	Person       string              `json:"person" jsonschema:"the person whose record this is, as the server labels them"`
-	LedgerID     string              `json:"ledger_id" jsonschema:"the ledger's identity; a receipt names it, and a watermark means nothing without it"`
-	Watermark    int64               `json:"watermark" jsonschema:"the ledger's current position; a read at this watermark sees exactly this knowledge"`
-	Now          string              `json:"now" jsonschema:"the current instant, RFC 3339 UTC; resolve relative dates against it"`
-	Zone         string              `json:"zone" jsonschema:"the IANA zone a bare date in a read is a day in"`
-	AnamVersion  string              `json:"anam_version" jsonschema:"the server's build"`
-	AdapterVer   string              `json:"adapter_version" jsonschema:"this adapter's build"`
-	ServerSince  string              `json:"server_since,omitempty" jsonschema:"when the server started; source freshness below covers only what it has seen since"`
-	Sources      []SourceFreshness   `json:"sources" jsonschema:"each source whose importer has sent a batch since the server started, and when; a quiet source may be current without recent facts"`
-	Types        []TypeSummary       `json:"types" jsonschema:"every facet type the server admits"`
-	Coverage     []TypeCoverage      `json:"coverage" jsonschema:"each type the record holds at watermark: how many live facts, the earliest and latest fact-time, and each source's share; it says what is recorded, never that a source is complete or that a gap is a gap in the world"`
-	CoverageErr  string              `json:"coverage_error,omitempty" jsonschema:"why coverage is empty when the server could not count it; everything else here stands"`
-	Projections  []ProjectionSummary `json:"projections" jsonschema:"every projection a read may go through; read_record's projection takes one of these names, and so does query_record's unless it writes its own with projection_inline"`
-	Capabilities []string            `json:"capabilities" jsonschema:"what this server can do"`
-	Limitations  []string            `json:"limitations" jsonschema:"what this server cannot do yet; do not work around these by other means"`
+	Person            string              `json:"person" jsonschema:"the person whose record this is, as the server labels them"`
+	LedgerID          string              `json:"ledger_id" jsonschema:"the ledger's identity; a receipt names it, and a watermark means nothing without it"`
+	Watermark         int64               `json:"watermark" jsonschema:"the ledger's current position; a read at this watermark sees exactly this knowledge"`
+	Now               string              `json:"now" jsonschema:"the current instant, RFC 3339 UTC; resolve relative dates against it"`
+	Zone              string              `json:"zone" jsonschema:"the IANA zone a bare date in a read is a day in"`
+	AnamVersion       string              `json:"anam_version" jsonschema:"the server's build"`
+	AdapterVer        string              `json:"adapter_version" jsonschema:"this adapter's build"`
+	ServerSince       string              `json:"server_since,omitempty" jsonschema:"when the server started; source freshness below covers only what it has seen since"`
+	Sources           []SourceFreshness   `json:"sources" jsonschema:"each source whose importer has sent a batch since the server started, and when; a quiet source may be current without recent facts"`
+	Types             []TypeSummary       `json:"types" jsonschema:"every facet type the server admits"`
+	Coverage          []TypeCoverage      `json:"coverage" jsonschema:"each type the record holds at watermark: how many live facts, the earliest and latest fact-time, and each source's share; it says what is recorded, never that a source is complete or that a gap is a gap in the world"`
+	CoverageErr       string              `json:"coverage_error,omitempty" jsonschema:"why coverage is empty when the server could not count it; everything else here stands"`
+	Projections       []ProjectionSummary `json:"projections" jsonschema:"every projection a read may go through; read_record's projection takes one of these names, and so does query_record's unless it writes its own with projection_inline"`
+	DefaultProjection string              `json:"default_projection,omitempty" jsonschema:"the projection the operator advises reading first, one of the names in projections; present only when the operator set one"`
+	ReadFirst         string              `json:"read_first,omitempty" jsonschema:"what to do with default_projection: present only when the operator set one"`
+	Capabilities      []string            `json:"capabilities" jsonschema:"what this server can do"`
+	Limitations       []string            `json:"limitations" jsonschema:"what this server cannot do yet; do not work around these by other means"`
 }
 
 // SourceFreshness is when a source was last read and last changed the record.
@@ -186,8 +189,30 @@ func (a *Adapter) describeRecord(ctx context.Context, _ *mcp.CallToolRequest, _ 
 			Description: p.Description, Types: p.Types, Shape: p.Shape,
 		})
 	}
+	if name := defaultProjection(st, projs); name != "" {
+		d.DefaultProjection = name
+		d.ReadFirst = fmt.Sprintf("The operator's default projection is %q. Read it first: call read_record with projection %q "+
+			"before any narrower read, then narrow from what it shows. It is advice about where to start; a read may "+
+			"go through any projection listed here.", name, name)
+	}
 	d.Coverage, d.CoverageErr = a.coverage(ctx, st.W)
 	return nil, d, nil
+}
+
+// defaultProjection is the projection the server advertises as the one to read first:
+// the projections list's, or the status's when that is all an older server says. It is
+// empty when none is set, or when the name is not among the projections listed.
+func defaultProjection(st anam.Status, projs anam.Projections) string {
+	name := projs.Default
+	if name == "" {
+		name = st.DefaultProjection
+	}
+	for _, p := range projs.Projections {
+		if p.Name == name {
+			return name
+		}
+	}
+	return ""
 }
 
 // coverage is the record's coverage at w, the watermark the description names, so

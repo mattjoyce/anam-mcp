@@ -19,6 +19,9 @@ type Status struct {
 	W        int64          `json:"w"`
 	Since    string         `json:"since,omitempty"`
 	Sources  []SourceStatus `json:"sources"`
+	// DefaultProjection is the projection the operator advises a client to read
+	// first (anam card 180); empty when none is set.
+	DefaultProjection string `json:"default_projection,omitempty"`
 }
 
 // SourceStatus is what the daemon has seen of one source since it started.
@@ -70,6 +73,9 @@ type SourceCoverage struct {
 
 // Projections is the answer to GET /v1/projections.
 type Projections struct {
+	// Default names the entry the operator advises a client to read first (anam
+	// card 180); empty when none is set.
+	Default     string              `json:"default,omitempty"`
 	Projections []ProjectionSummary `json:"projections"`
 }
 
