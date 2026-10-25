@@ -34,10 +34,12 @@ const (
 var toolNames = []string{"describe_query", "describe_record", "describe_type", "open_selection", "query_record", "read_receipt", "read_record", "save_selection", "verify_receipt"}
 
 // reading shapes one blood pressure reading to the bundled Definition: date_excel is
-// the fact time, a Sydney wall-clock; reading numbers readings in one minute.
+// the fact time, a Sydney wall-clock, and source_time says so (health.blood-pressure v8
+// requires it, v7 declares it); reading numbers readings in one minute.
 func reading(version int, dateExcel string, n int, sys, dia float64, comment string) Envelope {
 	payload := map[string]any{
 		"date_excel":               dateExcel,
+		"source_time":              map[string]any{"value": dateExcel, "zone": "Australia/Sydney", "basis": "source"},
 		"reading":                  fmt.Sprint(n),
 		"systolic_blood_pressure":  map[string]any{"value": sys, "unit": "mmHg"},
 		"diastolic_blood_pressure": map[string]any{"value": dia, "unit": "mmHg"},

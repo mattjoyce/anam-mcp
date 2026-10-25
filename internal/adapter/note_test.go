@@ -28,6 +28,13 @@ const (
 // through its token.
 func startNotes(t *testing.T) (*Daemon, *mcp.ClientSession) {
 	t.Helper()
+	return startNotesIn(t, "Australia/Sydney")
+}
+
+// startNotesIn is startNotes for a server set to zone, as an operator in another city
+// would run it.
+func startNotesIn(t *testing.T, zone string) (*Daemon, *mcp.ClientSession) {
+	t.Helper()
 	d := startDaemon(t, noteSource, nil)
 	noteToken := filepath.Join(t.TempDir(), "note-token")
 	if err := os.WriteFile(noteToken, []byte(d.importerToken+"\n"), 0o600); err != nil {
@@ -42,11 +49,11 @@ func startNotes(t *testing.T) (*Daemon, *mcp.ClientSession) {
 		t.Fatal(err)
 	}
 	now := func() time.Time { return time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC) }
-	sydney, err := time.LoadLocation("Australia/Sydney")
+	loc, err := time.LoadLocation(zone)
 	if err != nil {
 		t.Fatal(err)
 	}
-	server := adapter.New(client, sydney, now, "test").WithNotes(notes).Server()
+	server := adapter.New(client, loc, now, "test").WithNotes(notes).Server()
 	return d, session(t, server)
 }
 

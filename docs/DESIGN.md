@@ -135,7 +135,15 @@ owns no Definition. The tool fetches the type's Definition, names a required fie
 missing and a fact-time that does not parse before the daemon sees the payload, and otherwise
 lets the gate validate; the Definition composes the identity, so the same fact again is a no-op
 and changed fields are a new version. It sends `asserted_person`, so the gate binds the fact to
-the person with high assurance. What keeps it the person's fact and not the model's is the
+the person with high assurance. A type whose fact time reads the offset from the fact gets a
+`source_time` with the person's zone and that offset (anam card 198). A type whose Definition in
+force requires `source_time` and reads its fact time in its own zone (a visit, a lab result, a
+blood pressure reading; anam card 247) gets `{value, zone, basis}` with the wall clock as said, the
+Definition's zone whatever this server is set to, and the basis `source` when the client passed that
+zone, `configuration` when it passed none and this server's zone is the Definition's, else
+`assumption`; any other zone is refused naming both, as is a wall clock the zone skips or repeats.
+A Definition that does not require it is sent nothing, so the same build runs against a daemon
+before and after the change. What keeps it the person's fact and not the model's is the
 tool's contract, as `save_note`'s verbatim rule is: the fields are what the person gave or
 confirmed, a field that would have to be guessed is asked for, and a model's own reading stays
 a draft under `interpretation`. The source in every facet's identity keeps what the person

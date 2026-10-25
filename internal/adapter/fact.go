@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
@@ -37,7 +38,7 @@ var saveFactTool = &mcp.Tool{
 type SaveFactInput struct {
 	Type    string         `json:"type" jsonschema:"the facet type, dotted and namespaced, as describe_record lists it"`
 	Payload map[string]any `json:"payload" jsonschema:"the fields of the facet, exactly as the type's Definition names them (describe_type), holding the values the person gave or confirmed"`
-	Zone    string         `json:"zone,omitempty" jsonschema:"the zone the person is in, as your client knows it: an IANA name (Europe/London) or an offset (+01:00); pass it whenever you know it. A type timed by a wall clock is read in it, and the server adds source_time saying so; left out, the server's own zone is used"`
+	Zone    string         `json:"zone,omitempty" jsonschema:"the zone the person is in, as your client knows it: an IANA name (Europe/London) or an offset (+01:00); pass it whenever you know it. A type timed by a wall clock is read in it, and the server adds source_time saying so; left out, the server's own zone is used. A type that reads every time in its own zone (a lab result, a blood pressure reading, a visit) takes only that zone, Australia/Sydney, and refuses another"`
 }
 
 // SaveFactOutput is what save_fact answers: the fact as saved, and what became of it.
@@ -135,8 +136,10 @@ func missingRequired(d anam.Definition, payload map[string]any) []string {
 // addSourceTime gives a payload of a type whose fact time reads the offset from the
 // fact (anam card 198) the source_time that says how its wall clock was read: the
 // value as given, the person's zone or this server's, and the offset that wall clock
-// had there, refusing one the zone skips or repeats. A payload that already says, or
-// a type that reads no zone from the fact, is left as it is; a zone such a type cannot
+// had there, refusing one the zone skips or repeats. A payload that already says is
+// left as it is. A type that reads no zone from the fact is left alone too, unless its
+// Definition in force requires source_time (card 247), when the wall clock is read in
+// the Definition's zone and says so (fixedZoneSourceTime); a zone such a type cannot
 // take is refused, since the fact would be placed in the Definition's zone instead.
 func (a *Adapter) addSourceTime(d anam.Definition, payload map[string]any, zone string) error {
 	ft := d.Meta.TimeSemantics.FactTime
@@ -145,6 +148,9 @@ func (a *Adapter) addSourceTime(d anam.Definition, payload map[string]any, zone 
 		if z := strings.TrimSpace(zone); z != "" && z != ft.Zone && ft.ZonePointer == "" && zoneless(ft.Layout) {
 			return fmt.Errorf("the daemon's %s v%d reads %s in %s and cannot take zone %s; leave zone out, or update the daemon",
 				d.Meta.FacetType, d.Meta.DefinitionVersion, field, ft.Zone, z)
+		}
+		if ft.ZonePointer == "" && top && !strings.Contains(field, "/") && requires(d, sourceTimeField) {
+			return a.fixedZoneSourceTime(d, payload, zone)
 		}
 		return nil
 	}
@@ -168,6 +174,79 @@ func (a *Adapter) addSourceTime(d anam.Definition, payload map[string]any, zone 
 	}
 	payload[sourceTimeField] = c.sourceTime(value, t)
 	return nil
+}
+
+// fixedZoneSourceTime gives a payload of a type that requires source_time and reads
+// its fact time in the Definition's own zone (anam card 247) the block saying so: the
+// wall clock as given, that zone, and the basis. The zone is the Definition's whatever
+// this server is set to, since that is where the gate reads the clock. Basis source
+// when the person's client passed that zone, configuration when it passed none and
+// this server's own zone is the Definition's, else assumption: nothing but the
+// Definition's zone stands behind it. A wall clock that zone skips or repeats is
+// refused, named, since no offset can say which side the person meant.
+func (a *Adapter) fixedZoneSourceTime(d anam.Definition, payload map[string]any, zone string) error {
+	if _, said := payload[sourceTimeField]; said {
+		return nil
+	}
+	ft := d.Meta.TimeSemantics.FactTime
+	field := strings.TrimPrefix(ft.Pointer, "/")
+	value, ok := payload[field].(string)
+	if !ok {
+		return nil // checkFactTime names what is wanted
+	}
+	loc, err := time.LoadLocation(ft.Zone)
+	if err != nil {
+		return fmt.Errorf("the %s Definition's zone %q: %w", d.Meta.FacetType, ft.Zone, err)
+	}
+	c := writerClock{loc: loc, name: ft.Zone, basis: "assumption"}
+	switch {
+	case strings.TrimSpace(zone) == ft.Zone:
+		c.basis = "source"
+	case strings.TrimSpace(zone) == "" && a.zone.String() == ft.Zone:
+		c.basis = "configuration"
+	}
+	t, err := c.instant(ft.Layout, value)
+	if err != nil {
+		if _, perr := time.ParseInLocation(ft.Layout, value, time.UTC); perr != nil {
+			return fmt.Errorf("%s %q: want the layout %s, in %s", field, value, ft.Layout, c.name)
+		}
+		return fmt.Errorf("%s %w", field, err)
+	}
+	if untimed, _ := payload["time_unknown"].(bool); untimed {
+		value, _, _ = strings.Cut(value, " ") // the day alone, as the source gave it
+	}
+	st := map[string]any{"value": value, "zone": c.name, "basis": c.basis}
+	if needsOffset(d) {
+		st["offset"] = t.In(c.loc).Format("-07:00")
+	}
+	payload[sourceTimeField] = st
+	return nil
+}
+
+// requires reports whether the Definition's schema lists field as required.
+func requires(d anam.Definition, field string) bool {
+	var s struct {
+		Required []string `json:"required"`
+	}
+	if err := json.Unmarshal(d.Schema, &s); err != nil {
+		return false
+	}
+	return slices.Contains(s.Required, field)
+}
+
+// needsOffset reports whether the Definition's source_time lists offset as required, as
+// its second shape does; the first shape (value, zone, basis) has none, and a closed
+// schema would refuse one.
+func needsOffset(d anam.Definition) bool {
+	var s struct {
+		Properties map[string]struct {
+			Required []string `json:"required"`
+		} `json:"properties"`
+	}
+	if err := json.Unmarshal(d.Schema, &s); err != nil {
+		return false
+	}
+	return slices.Contains(s.Properties[sourceTimeField].Required, "offset")
 }
 
 // zoneless reports whether a Go time layout writes no offset and no zone name.
