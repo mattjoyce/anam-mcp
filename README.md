@@ -31,6 +31,8 @@ its first page.
 
 - [docs/DESIGN.md](docs/DESIGN.md): decisions, tools, evidence handling, runtime, scenarios.
 - [docs/API-GAPS.md](docs/API-GAPS.md): what the adapter needs from Anam and does not have yet.
+- [docs/CLOUDFLARE.md](docs/CLOUDFLARE.md): serving it to Claude on the web through Cloudflare
+  Tunnel and Access, step by step.
 
 ## Configuration
 
@@ -80,6 +82,9 @@ stateless Streamable HTTP at `/mcp` and leaves OAuth to Cloudflare Access:
    and hands the adapter a signed JWT on each request.
 4. Set `ANAM_MCP_ACCESS_TEAM_DOMAIN` and `ANAM_MCP_ACCESS_AUD` from that application.
 5. Add `https://<hostname>/mcp` as a custom connector in the client.
+
+[docs/CLOUDFLARE.md](docs/CLOUDFLARE.md) has each step in the dashboard and by API, the token
+permissions, the checks and what to look at when it fails.
 
 The `Dockerfile` builds a static image on a distroless base, running as a non-root user. It sets
 no configuration; pass the variables above and mount the token files where that user can read
