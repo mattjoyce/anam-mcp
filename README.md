@@ -81,6 +81,10 @@ stateless Streamable HTTP at `/mcp` and leaves OAuth to Cloudflare Access:
 4. Set `ANAM_MCP_ACCESS_TEAM_DOMAIN` and `ANAM_MCP_ACCESS_AUD` from that application.
 5. Add `https://<hostname>/mcp` as a custom connector in the client.
 
+The `Dockerfile` builds a static image on a distroless base, running as a non-root user. It sets
+no configuration; pass the variables above and mount the token files where that user can read
+them. With host networking beside cloudflared, both the daemon and the adapter stay on loopback.
+
 The adapter refuses any request without a valid JWT for that application, so a route that
 bypasses Access reaches nothing. Leave `ANAM_MCP_NOTE_TOKEN_FILE` unset to serve reads only.
 

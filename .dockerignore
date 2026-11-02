@@ -1,0 +1,6 @@
+# Admit only what the image is built from.
+*
+!go.mod
+!go.sum
+!cmd/
+!internal/
