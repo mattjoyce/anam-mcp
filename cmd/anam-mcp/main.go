@@ -1,5 +1,6 @@
-// Command anam-mcp serves Anam to a model over MCP on stdio. It is a client of the
-// Anam daemon named by ANAM_SERVER and nothing more.
+// Command anam-mcp serves Anam to a model over MCP, on stdio or over HTTP behind
+// Cloudflare Access. It is a client of the Anam daemon named by ANAM_SERVER and
+// nothing more.
 package main
 
 import (

@@ -42,6 +42,9 @@ its first page.
 | `ANAM_MCP_TIMEOUT` | Deadline for each call on the daemon, sent to it so it answers in time. Default `30s`, so a stuck daemon fails the tool within half a minute rather than holding the conversation. A positive duration |
 | `ANAM_MCP_NETWORK_MARGIN` | Time allowed beyond that deadline for the answer to travel, so a daemon that answers at its bound is still heard. Default `5s`, ample on a LAN; a daemon across a slow link may want more. Zero or a positive duration |
 | `ANAM_MCP_MAX_RESPONSE_BYTES` | The most the adapter reads of one answer from the daemon. Default `67108864` (64 MiB), the anam CLI's own bound; the daemon's `max_read_bytes` refuses a read far smaller than this first, so this only stops a daemon that misbehaves. From 1024 to 1073741824 |
+| `ANAM_MCP_HTTP_ADDR` | Serve MCP over HTTP at `/mcp` on this address, such as `127.0.0.1:8790`, instead of stdio. Every request must carry a JWT from Cloudflare Access (`Cf-Access-Jwt-Assertion`), so the two Access variables are required with it. A `host:port`. Unset, the adapter speaks stdio |
+| `ANAM_MCP_ACCESS_TEAM_DOMAIN` | The Access team domain that signs the JWT, such as `https://example.cloudflareaccess.com`. Required with `ANAM_MCP_HTTP_ADDR` |
+| `ANAM_MCP_ACCESS_AUD` | The AUD tag of the Access application in front of the adapter. Required with `ANAM_MCP_HTTP_ADDR` |
 | `ANAM_MCP_NOTE_TOKEN_FILE` | A file holding the token of the importer the person's words and facts are admitted as, in the daemon's `importers_file` with source `conversation` and `any_type: true` (or types `[record.edge]`, which offers only notes in effect). Set, the adapter offers `save_note` and `save_fact`; unset, it writes nothing. Never logged |
 
 A value that fails its check stops the adapter at start, naming the variable. Every other value
@@ -63,6 +66,27 @@ stderr. For Claude Code:
 ```sh
 claude mcp add anam -e ANAM_SERVER=http://127.0.0.1:8787 -e ANAM_TOKEN_FILE=$HOME/.config/anam/token -e ANAM_ZONE=Australia/Sydney -- /path/to/anam-mcp
 ```
+
+### Over HTTP, behind Cloudflare Access
+
+For a client that cannot run a local process, such as Claude on the web, the adapter serves
+stateless Streamable HTTP at `/mcp` and leaves OAuth to Cloudflare Access:
+
+1. Run the adapter with `ANAM_MCP_HTTP_ADDR` on a loopback address beside cloudflared.
+2. In the tunnel, route a hostname of its own (a subdomain, so OAuth discovery at the host's root
+   is Access's) to that address.
+3. Add a self-hosted Access application for the hostname with a policy that admits only you,
+   and turn on Managed OAuth. Access then answers discovery, registers the client, logs you in
+   and hands the adapter a signed JWT on each request.
+4. Set `ANAM_MCP_ACCESS_TEAM_DOMAIN` and `ANAM_MCP_ACCESS_AUD` from that application.
+5. Add `https://<hostname>/mcp` as a custom connector in the client.
+
+The `Dockerfile` builds a static image on a distroless base, running as a non-root user. It sets
+no configuration; pass the variables above and mount the token files where that user can read
+them. With host networking beside cloudflared, both the daemon and the adapter stay on loopback.
+
+The adapter refuses any request without a valid JWT for that application, so a route that
+bypasses Access reaches nothing. Leave `ANAM_MCP_NOTE_TOKEN_FILE` unset to serve reads only.
 
 ## Developing
 

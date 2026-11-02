@@ -8,8 +8,11 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
+	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -33,6 +36,16 @@ const (
 	// facts are admitted as (source conversation). Set, the adapter offers
 	// save_note and save_fact; unset, it writes nothing (anam cards 157, 177).
 	EnvNoteTokenFile = envPrefix + "MCP_NOTE_TOKEN_FILE"
+	// EnvHTTPAddr is the address to serve MCP over HTTP on, such as
+	// 127.0.0.1:8790. Unset, the adapter speaks stdio. Set, it answers only
+	// requests Cloudflare Access let through, so the two Access variables are
+	// required with it.
+	EnvHTTPAddr = envPrefix + "MCP_HTTP_ADDR"
+	// EnvAccessTeamDomain is the Access team domain that signs the JWT, such as
+	// https://example.cloudflareaccess.com.
+	EnvAccessTeamDomain = envPrefix + "MCP_ACCESS_TEAM_DOMAIN"
+	// EnvAccessAUD is the AUD tag of the Access application fronting the adapter.
+	EnvAccessAUD = envPrefix + "MCP_ACCESS_AUD"
 )
 
 // The opinionated defaults. Each is a config key; see AGENTS.md and anam card 151.
@@ -59,6 +72,10 @@ type Config struct {
 	Timeout       time.Duration
 	Margin        time.Duration
 	MaxBody       int64
+	// HTTPAddr is where to serve HTTP; empty, the adapter speaks stdio.
+	HTTPAddr string
+	// Access fronts the HTTP server; set whenever HTTPAddr is.
+	Access Access
 }
 
 // ConfigFromEnv reads the configuration from the environment and refuses to start
@@ -99,10 +116,40 @@ func ConfigFromEnv(getenv func(string) string) (Config, error) {
 		}
 		c.MaxBody = n
 	}
+	if err := c.httpFromEnv(getenv); err != nil {
+		return Config{}, err
+	}
 	return c, nil
 }
 
-// Run serves the adapter on stdio until the client closes the stream or ctx ends.
+// httpFromEnv reads the HTTP address and the Access application in front of it.
+// There is no HTTP without Access: the record is a person's own, and an address
+// that answered without it would answer anyone who reached it.
+func (c *Config) httpFromEnv(getenv func(string) string) error {
+	c.HTTPAddr = getenv(EnvHTTPAddr)
+	team, aud := getenv(EnvAccessTeamDomain), getenv(EnvAccessAUD)
+	if c.HTTPAddr == "" {
+		if team != "" || aud != "" {
+			return fmt.Errorf("%s and %s apply only to HTTP: set %s too, or unset them", EnvAccessTeamDomain, EnvAccessAUD, EnvHTTPAddr)
+		}
+		return nil
+	}
+	if _, _, err := net.SplitHostPort(c.HTTPAddr); err != nil {
+		return fmt.Errorf("%s=%q: want host:port such as 127.0.0.1:8790", EnvHTTPAddr, c.HTTPAddr)
+	}
+	u, err := url.Parse(team)
+	if team == "" || err != nil || u.Scheme != "https" || u.Host == "" || (u.Path != "" && u.Path != "/") {
+		return fmt.Errorf("%s=%q: HTTP needs the Access team domain, such as https://example.cloudflareaccess.com", EnvAccessTeamDomain, team)
+	}
+	if aud == "" {
+		return fmt.Errorf("%s is not set: HTTP needs the AUD tag of the Access application in front of it", EnvAccessAUD)
+	}
+	c.Access = Access{TeamDomain: strings.TrimSuffix(team, "/"), AUD: aud}
+	return nil
+}
+
+// Run serves the adapter until ctx ends: on stdio until the client closes the
+// stream, or over HTTP behind Cloudflare Access when ANAM_MCP_HTTP_ADDR is set.
 func Run(ctx context.Context, version string) error {
 	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
 	cfg, err := ConfigFromEnv(os.Getenv)
@@ -122,6 +169,12 @@ func Run(ctx context.Context, version string) error {
 		a.WithNotes(notes)
 	}
 	server := a.Server()
+	if cfg.HTTPAddr != "" {
+		log.Info("anam-mcp: serving HTTP behind Cloudflare Access", "addr", cfg.HTTPAddr, "path", MCPPath,
+			"access", cfg.Access.TeamDomain, "server", cfg.Server, "zone", cfg.Zone.String(), "version", version,
+			"notes", cfg.NoteTokenFile != "")
+		return serveHTTP(ctx, cfg.HTTPAddr, HTTPHandler(ctx, server, cfg.Access, log), cfg.Timeout+cfg.Margin)
+	}
 	log.Info("anam-mcp: serving on stdio", "server", cfg.Server, "zone", cfg.Zone.String(), "version", version,
 		"notes", cfg.NoteTokenFile != "")
 	err = server.Run(ctx, &mcp.StdioTransport{})

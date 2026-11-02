@@ -25,6 +25,13 @@ func TestConfigFromEnv(t *testing.T) {
 		{"max body not a number", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "UTC", EnvMaxBody: "lots"}, Config{}, EnvMaxBody + "=\"lots\""},
 		{"note token", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "UTC", EnvNoteTokenFile: "/run/note-token"},
 			Config{Server: "http://127.0.0.1:8787", NoteTokenFile: "/run/note-token", Timeout: DefaultTimeout, Margin: DefaultMargin, MaxBody: DefaultMaxBody}, ""},
+		{"http behind access", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "UTC", EnvHTTPAddr: "127.0.0.1:8790", EnvAccessTeamDomain: "https://example.cloudflareaccess.com/", EnvAccessAUD: "aud-tag"},
+			Config{Server: "http://127.0.0.1:8787", Timeout: DefaultTimeout, Margin: DefaultMargin, MaxBody: DefaultMaxBody, HTTPAddr: "127.0.0.1:8790", Access: Access{TeamDomain: "https://example.cloudflareaccess.com", AUD: "aud-tag"}}, ""},
+		{"http without access", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "UTC", EnvHTTPAddr: "127.0.0.1:8790"}, Config{}, EnvAccessTeamDomain},
+		{"http without aud", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "UTC", EnvHTTPAddr: "127.0.0.1:8790", EnvAccessTeamDomain: "https://example.cloudflareaccess.com"}, Config{}, EnvAccessAUD + " is not set"},
+		{"team domain over http", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "UTC", EnvHTTPAddr: "127.0.0.1:8790", EnvAccessTeamDomain: "http://example.cloudflareaccess.com", EnvAccessAUD: "aud-tag"}, Config{}, EnvAccessTeamDomain},
+		{"http addr without port", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "UTC", EnvHTTPAddr: "localhost", EnvAccessTeamDomain: "https://example.cloudflareaccess.com", EnvAccessAUD: "aud-tag"}, Config{}, EnvHTTPAddr + "=\"localhost\""},
+		{"access without http", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "UTC", EnvAccessAUD: "aud-tag"}, Config{}, EnvHTTPAddr},
 		{"no server", map[string]string{EnvZone: "UTC"}, Config{}, EnvServer + " is not set"},
 		{"no zone", map[string]string{EnvServer: "http://127.0.0.1:8787"}, Config{}, EnvZone + " is not set"},
 		{"local zone", map[string]string{EnvServer: "http://127.0.0.1:8787", EnvZone: "Local"}, Config{}, EnvZone + " is not set"},
@@ -46,7 +53,8 @@ func TestConfigFromEnv(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if got.Server != c.want.Server || got.TokenFile != c.want.TokenFile || got.NoteTokenFile != c.want.NoteTokenFile || got.Timeout != c.want.Timeout || got.Margin != c.want.Margin {
+			if got.Server != c.want.Server || got.TokenFile != c.want.TokenFile || got.NoteTokenFile != c.want.NoteTokenFile || got.Timeout != c.want.Timeout || got.Margin != c.want.Margin ||
+				got.HTTPAddr != c.want.HTTPAddr || got.Access != c.want.Access {
 				t.Errorf("config = %+v, want %+v", got, c.want)
 			}
 			if got.Zone == nil || got.Zone.String() != c.env[EnvZone] {
