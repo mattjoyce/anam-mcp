@@ -38,6 +38,7 @@ Added at the first code commit, 2026-10-11, made without Matt (he asked for sens
 | Receipt URIs | `anam://receipts/{+hash}`: a hash is `sha256:<hex>`, and the reserved expansion is what lets the colon match |
 | The query (2026-10-19, anam card 173) | `query_record` sends the program to `POST /v1/query` and answers the relation's tuples, decoded like payloads, with the receipt the daemon filed; `describe_query` is `GET /v1/query` with one line on how to proceed. The adapter checks only what it can without parsing the program (a projection, a program, a relation, one knowledge pin); the daemon validates the program and its refusal, which says what to change, is the tool's error. The adapter evaluates nothing: the engine, the bundled rules and the equality with the fold are Anam's |
 | Saved selections (2026-10-22, anam card 206) | `save_selection` is `POST /v1/selections` and answers the code with the person's pages addressed on the configured server: the timeline drawing the selection alone, the timeline highlighting it, and the select page. `open_selection` is `GET /v1/selections/{code}` and then a dry-run `POST /v1/query` of the saved program with one rule added, `anam_mcp_opened(E, T, At) :- pick(E), entry(E, T, At, _, _, _, _).`, so each picked facet comes back with its type and fact time from Anam's evaluator rather than the adapter's. It files nothing, so it is read-only; a citation is `query_record` with relation `pick`. The answer is bounded by the daemon's `max_read_bytes`, and the refusal says what to narrow. A projection is required, as for `query_record`, since the API serves nothing unprojected (gap, card 180) |
+| HTTP behind Cloudflare Access (2026-11-02) | For Claude on the web, which reaches a connector over the internet. `ANAM_MCP_HTTP_ADDR` serves stateless Streamable HTTP at `/mcp`; unset, stdio as before. OAuth is Cloudflare Access's Managed OAuth at the edge (discovery, client registration, login, opaque tokens), not the adapter's: an authorization server is a domain of its own and has no place in a translator. The adapter checks the `Cf-Access-Jwt-Assertion` JWT on every request (issuer the team domain, audience the application's AUD tag, keys from the team's certs, fetched and rotated by go-oidc) and refuses without it, so a route that bypasses Access reaches nothing. There is no HTTP without Access. The SDK's DNS-rebinding guard is off: cloudflared connects on loopback with the public host name, which the guard refuses, and a rebound request carries no JWT. The public instance runs on its own subdomain, so the host's `/.well-known` is Access's |
 
 ## 2. Protocol
 
@@ -70,8 +71,9 @@ Not used, by decision:
 - Tasks, subscriptions and list-changed notifications. Every call finishes within its deadline,
   and the tool list is fixed per build.
 - Prompts, until a scenario needs one.
-- Streamable HTTP and its authorization (OAuth, `iss` validation, client metadata documents). These
-  come with a remote deployment, if one is ever wanted.
+- Streamable HTTP's authorization in the adapter (OAuth, `iss` validation, client metadata
+  documents). HTTP came with the remote deployment (§1, 2026-11-02), and Cloudflare Access does
+  the OAuth; the adapter checks the JWT Access signs.
 
 ## 3. Tools
 
