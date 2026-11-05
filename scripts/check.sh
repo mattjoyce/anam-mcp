@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Pre-merge quality gate, the anam repo's with one addition: the tests run against a
 # real anam daemon, so ANAM_BIN must name an anam binary. Unset, it is built from the
-# sibling checkout at ../anam (or $ANAM_SRC) into a scratch directory.
+# sibling checkout at ../anam (or $ANAM_SRC) into a scratch directory. The binary
+# carries no catalog (anam card 255), so ANAM_CATALOG must name one: a directory
+# holding definitions/ and projections/ with the types the tests write.
 set -uo pipefail
 
 fail=0
@@ -55,8 +57,15 @@ if [ -z "$bin" ]; then
     echo "ANAM_BIN unset and no anam checkout at $src: daemon tests will be skipped" >&2
   fi
 fi
+# A binary without a catalog fails every daemon test, and one skipped quietly would
+# pass a gate that tested nothing, so the gate refuses to run them half-configured.
+catalog="${ANAM_CATALOG:-}"
+if [ -n "$bin" ] && [ ! -d "$catalog/definitions" ]; then
+  echo "  FAILED: ANAM_CATALOG names no catalog with a definitions/ directory (got '$catalog')" >&2
+  fail=1
+fi
 for v in $(compgen -e | grep '^ANAM_' || true); do unset "$v"; done
-export ANAM_BIN="$bin"
+export ANAM_BIN="$bin" ANAM_CATALOG="$catalog"
 run go test -race -count=1 -shuffle=on -vet=all ./...
 
 if [ "$fail" -ne 0 ]; then echo "CHECK FAILED"; exit 1; fi

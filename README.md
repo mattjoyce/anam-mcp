@@ -99,16 +99,20 @@ bypasses Access reaches nothing. Leave `ANAM_MCP_NOTE_TOKEN_FILE` unset to serve
 ./scripts/check.sh
 ```
 
-The tests run a real `anam daemon` on a scratch ledger, so they need an `anam` binary. Get one
-from the public anam repo:
+The tests run a real `anam daemon` on a scratch ledger, so they need an `anam` binary and a
+catalog for it to run on. Get the binary from the public anam repo:
 
 ```sh
 go install github.com/mattjoyce/anam/cmd/anam@latest
-ANAM_BIN="$(go env GOPATH)/bin/anam" ./scripts/check.sh
+ANAM_BIN="$(go env GOPATH)/bin/anam" ANAM_CATALOG=/path/to/catalog ./scripts/check.sh
 ```
 
 `ANAM_BIN` names the binary; unset, `scripts/check.sh` builds one from a sibling checkout at
-`../anam` (or `ANAM_SRC`). Without either, the tests that need a daemon are skipped and say so.
+`../anam` (or `ANAM_SRC`). `ANAM_CATALOG` names a catalog directory, `definitions/` and
+`projections/` as a deployment's catalog repository holds them, with the types the tests write
+(`health.blood-pressure`, `health.weight`, `record.edge`) and the `bp` projection: the anam
+binary carries no catalog of its own. A plain `go test` without either skips the tests that
+need a daemon and says so; `scripts/check.sh` with a binary and no catalog fails.
 A secrets scan of the history runs as a tool, not a dependency, with the repo's own allowlist
 for the README's token-file examples:
 

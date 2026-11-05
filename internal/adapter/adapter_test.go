@@ -22,7 +22,7 @@ import (
 const (
 	bpType   = "health.blood-pressure"
 	bpSource = "bp-csv"
-	// bpProjection is bundled with the daemon and serves bpType.
+	// bpProjection is in the test catalog (ANAM_CATALOG) and serves bpType.
 	bpProjection = "bp"
 	// injected is a payload comment that reads like an instruction. It must reach
 	// the model as the data it is, inside evidence, and change nothing.
@@ -33,7 +33,7 @@ const (
 // (the SDK lists tools by name).
 var toolNames = []string{"describe_query", "describe_record", "describe_type", "open_selection", "query_record", "read_receipt", "read_record", "save_selection", "verify_receipt"}
 
-// reading shapes one blood pressure reading to the bundled Definition: date_excel is
+// reading shapes one blood pressure reading to the catalog's Definition: date_excel is
 // the fact time, a Sydney wall-clock, and source_time says so (health.blood-pressure v8
 // requires it, v7 declares it); reading numbers readings in one minute.
 func reading(version int, dateExcel string, n int, sys, dia float64, comment string) Envelope {

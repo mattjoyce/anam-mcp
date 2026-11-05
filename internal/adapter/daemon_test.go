@@ -1,7 +1,8 @@
 // A real anam daemon for the adapter's tests: a new ledger
 // under the test's own directory, an operator token, one importer that may submit
-// the types a test needs. ANAM_BIN names the anam binary; without it the tests that
-// need a daemon are skipped, and scripts/check.sh sets it.
+// the types a test needs. ANAM_BIN names the anam binary and ANAM_CATALOG the
+// catalog it runs on; without either the tests that need a daemon are skipped, and
+// scripts/check.sh sets both.
 package adapter_test
 
 import (
@@ -26,6 +27,12 @@ import (
 // EnvBin names the anam binary the tests run.
 const EnvBin = "ANAM_BIN"
 
+// EnvCatalog names the catalog the daemon runs on: a directory holding definitions/
+// and projections/, as a deployment's catalog repository does. The engine binary
+// carries no catalog since anam card 255, and the tests read health.blood-pressure,
+// health.weight, record.edge and the bp projection from it.
+const EnvCatalog = "ANAM_CATALOG"
+
 // Daemon is one running anam daemon on a scratch ledger.
 type Daemon struct {
 	// URL is the daemon's base URL and TokenFile the operator token's path: what the
@@ -43,12 +50,16 @@ type Daemon struct {
 // Start runs a daemon for t that admits types from source, or every type when
 // types is empty (any_type, anam card 177), and stops it when the test ends. env
 // adds to the daemon's configuration, as KEY=value, the way its operator sets it.
-// It skips t when ANAM_BIN is unset.
+// It skips t when ANAM_BIN or ANAM_CATALOG is unset.
 func startDaemon(t *testing.T, source string, types []string, env ...string) *Daemon {
 	t.Helper()
 	bin := os.Getenv(EnvBin)
 	if bin == "" {
 		t.Skipf("%s names no anam binary; scripts/check.sh sets it", EnvBin)
+	}
+	catalog := os.Getenv(EnvCatalog)
+	if catalog == "" {
+		t.Skipf("%s names no catalog; scripts/check.sh sets it", EnvCatalog)
 	}
 	dir := t.TempDir()
 	d := &Daemon{Source: source, TokenFile: filepath.Join(dir, "token"), importerToken: random(32)}
@@ -76,6 +87,8 @@ func startDaemon(t *testing.T, source string, types []string, env ...string) *Da
 		"ANAM_TOKEN_FILE=" + d.TokenFile,
 		"ANAM_IMPORTERS_FILE=" + filepath.Join(dir, "importers.yaml"),
 		"ANAM_ZONE=UTC",
+		"ANAM_DEFINITIONS_DIR=" + filepath.Join(catalog, "definitions"),
+		"ANAM_PROJECTIONS_DIR=" + filepath.Join(catalog, "projections"),
 	}, env...)
 	initCmd := exec.CommandContext(context.Background(), bin, "init") // #nosec G204 -- the test names the binary.
 	initCmd.Env = env
