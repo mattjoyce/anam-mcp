@@ -13,7 +13,7 @@ import (
 var describeRecordTool = &mcp.Tool{
 	Name:  "describe_record",
 	Title: "Describe the record",
-	Description: "Learn what the record holds before choosing what to read: whose record it is, its ledger identity and " +
+	Description: "Learn what the record holds before choosing what to read: what it is about (its subject), its ledger identity and " +
 		"current watermark, the current time and the zone bare dates are read in, which sources the server has seen and " +
 		"when, every facet type it admits with its current definition version, how many facts of each type the record " +
 		"holds with the earliest and latest fact-time and the sources they came from, every projection a read may go " +
@@ -41,7 +41,7 @@ type DescribeTypeInput struct {
 
 // RecordDescription is what describe_record answers.
 type RecordDescription struct {
-	Person            string              `json:"person" jsonschema:"the person whose record this is, as the server labels them"`
+	Subject           string              `json:"subject" jsonschema:"what the record is about, as the server labels it"`
 	LedgerID          string              `json:"ledger_id" jsonschema:"the ledger's identity; a receipt names it, and a watermark means nothing without it"`
 	Watermark         int64               `json:"watermark" jsonschema:"the ledger's current position; a read at this watermark sees exactly this knowledge"`
 	Now               string              `json:"now" jsonschema:"the current instant, RFC 3339 UTC; resolve relative dates against it"`
@@ -169,7 +169,7 @@ func (a *Adapter) describeRecord(ctx context.Context, _ *mcp.CallToolRequest, _ 
 	}
 	can, cannot := a.offered()
 	d := RecordDescription{
-		Person: st.Person, LedgerID: st.LedgerID, Watermark: st.W,
+		Subject: subjectOf(st), LedgerID: st.LedgerID, Watermark: st.W,
 		Now: a.now().UTC().Format(time.RFC3339), Zone: a.zone.String(),
 		AnamVersion: st.Version, AdapterVer: a.version, ServerSince: st.Since,
 		Sources:      make([]SourceFreshness, 0, len(st.Sources)),

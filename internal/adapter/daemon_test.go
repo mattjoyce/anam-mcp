@@ -1,7 +1,8 @@
 // A real anam daemon for the adapter's tests: a new ledger
 // under the test's own directory, an operator token, one importer that may submit
-// the types a test needs. ANAM_BIN names the anam binary; without it the tests that
-// need a daemon are skipped, and scripts/check.sh sets it.
+// the types a test needs. ANAM_BIN names the anam binary and ANAM_CATALOG the
+// catalog it runs on; without either the tests that need a daemon are skipped, and
+// scripts/check.sh sets both.
 package adapter_test
 
 import (
@@ -23,8 +24,17 @@ import (
 	"time"
 )
 
+// subjectID is the record's subject in every test daemon.
+const subjectID = "subject-a"
+
 // EnvBin names the anam binary the tests run.
 const EnvBin = "ANAM_BIN"
+
+// EnvCatalog names the catalog the daemon runs on: a directory holding definitions/
+// and projections/, as a deployment's catalog repository does. The engine binary
+// carries no catalog since anam card 255, and the tests read health.blood-pressure,
+// health.weight, record.edge and the bp projection from it.
+const EnvCatalog = "ANAM_CATALOG"
 
 // Daemon is one running anam daemon on a scratch ledger.
 type Daemon struct {
@@ -43,12 +53,16 @@ type Daemon struct {
 // Start runs a daemon for t that admits types from source, or every type when
 // types is empty (any_type, anam card 177), and stops it when the test ends. env
 // adds to the daemon's configuration, as KEY=value, the way its operator sets it.
-// It skips t when ANAM_BIN is unset.
+// It skips t when ANAM_BIN or ANAM_CATALOG is unset.
 func startDaemon(t *testing.T, source string, types []string, env ...string) *Daemon {
 	t.Helper()
 	bin := os.Getenv(EnvBin)
 	if bin == "" {
 		t.Skipf("%s names no anam binary; scripts/check.sh sets it", EnvBin)
+	}
+	catalog := os.Getenv(EnvCatalog)
+	if catalog == "" {
+		t.Skipf("%s names no catalog; scripts/check.sh sets it", EnvCatalog)
 	}
 	dir := t.TempDir()
 	d := &Daemon{Source: source, TokenFile: filepath.Join(dir, "token"), importerToken: random(32)}
@@ -68,7 +82,11 @@ func startDaemon(t *testing.T, source string, types []string, env ...string) *Da
 	port := freePort(t)
 	d.URL = fmt.Sprintf("http://127.0.0.1:%d", port)
 	env = append([]string{"PATH=" + os.Getenv("PATH"), "HOME=" + dir,
-		"ANAM_PERSON_ID=person-a",
+		// The record's subject (anam card 270a). ANAM_PERSON_ID, its old name, says
+		// the same for a binary from before 270a, the rollback image among them; one
+		// from after reads both, equal, with an INFO.
+		"ANAM_SUBJECT_ID=" + subjectID,
+		"ANAM_PERSON_ID=" + subjectID,
 		"ANAM_LEDGER_PATH=" + filepath.Join(dir, "ledger.db"),
 		"ANAM_DB_PATH=" + filepath.Join(dir, "tracking.db"),
 		"ANAM_ARTIFACT_DIR=" + filepath.Join(dir, "artifacts"),
@@ -76,6 +94,8 @@ func startDaemon(t *testing.T, source string, types []string, env ...string) *Da
 		"ANAM_TOKEN_FILE=" + d.TokenFile,
 		"ANAM_IMPORTERS_FILE=" + filepath.Join(dir, "importers.yaml"),
 		"ANAM_ZONE=UTC",
+		"ANAM_DEFINITIONS_DIR=" + filepath.Join(catalog, "definitions"),
+		"ANAM_PROJECTIONS_DIR=" + filepath.Join(catalog, "projections"),
 	}, env...)
 	initCmd := exec.CommandContext(context.Background(), bin, "init") // #nosec G204 -- the test names the binary.
 	initCmd.Env = env

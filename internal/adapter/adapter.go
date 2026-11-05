@@ -91,19 +91,37 @@ func readOnly() *mcp.ToolAnnotations {
 	return &mcp.ToolAnnotations{ReadOnlyHint: true, IdempotentHint: true, OpenWorldHint: &f}
 }
 
-// assertedPerson is the record's person, as the daemon states it, for a write tool
-// to scope its envelope to with asserted_person: the gate then binds the fact with
-// high assurance. A daemon that names no person is an error, not a quiet medium
-// binding, since the person's own words and facts are what these tools save.
-func (a *Adapter) assertedPerson(ctx context.Context, what string) (string, error) {
+// assertSubject scopes env to the record's subject, as the daemon states it, so the
+// gate binds the fact with high assurance. The status is read at every write, since
+// the daemon behind the adapter may be replaced between two calls (a deploy or its
+// rollback), and it names the wire too: a daemon that answers subject reads
+// asserted_subject (anam card 270a), and one that answers only person, from before
+// 270a, refuses asserted_subject as an unknown field, so it gets asserted_person. A
+// daemon that names neither is an error, not a quiet medium binding, since the
+// person's own words and facts are what these tools save.
+func (a *Adapter) assertSubject(ctx context.Context, what string, env *anam.Envelope) error {
 	st, err := a.client.Status(ctx)
 	if err != nil {
-		return "", a.failed(what, err)
+		return a.failed(what, err)
 	}
-	if st.Person == "" {
-		return "", fmt.Errorf("%s: the daemon at %s names no person, so nothing can be saved as theirs", what, a.client.Server())
+	switch {
+	case st.Subject != "":
+		env.AssertedSubject = st.Subject
+	case st.Person != "":
+		env.AssertedPerson = st.Person
+	default:
+		return fmt.Errorf("%s: the daemon at %s names no subject, so nothing can be saved as theirs", what, a.client.Server())
 	}
-	return st.Person, nil
+	return nil
+}
+
+// subjectOf is the record's subject as st states it: under its name, or under its
+// old name, person, from a daemon before anam card 270a.
+func subjectOf(st anam.Status) string {
+	if st.Subject != "" {
+		return st.Subject
+	}
+	return st.Person
 }
 
 // failed turns a daemon error into the error a tool answers with. The daemon that

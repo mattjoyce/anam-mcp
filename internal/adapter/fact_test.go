@@ -10,7 +10,7 @@ import (
 	"github.com/mattjoyce/anam-mcp/internal/adapter"
 )
 
-// weightType is a bundled type with a Sydney wall-clock fact time, so a fact
+// weightType is a catalog type with a Sydney wall-clock fact time, so a fact
 // saved at noon there is on 1 July in UTC too, where the harness reads days.
 const weightType = "health.weight"
 

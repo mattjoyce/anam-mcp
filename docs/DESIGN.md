@@ -22,6 +22,7 @@ Recorded at the first commit, 2026-10-10.
 | Server and token | `ANAM_SERVER` and `ANAM_TOKEN_FILE`, the same variables the `anam` CLI reads. The token is read from the file at start and never logged or echoed in a tool result |
 | Zone | `ANAM_ZONE`, an IANA name. The daemon refuses `Local`, so the adapter resolves the zone before it starts and fails if it cannot |
 | State | None worth recovering. A restart loses nothing; durable work lives in Anam |
+| The record's subject (2026-11-06, anam card 270a) | Anam renamed the record's person to its subject. `describe_record` answers `subject`, with no transition field, since no program reads the tool's answer. The adapter reads the status's `subject` and falls back to `person`, so it works against a daemon from before 270a (the rollback image answers only `person`), the 270a daemon (both, equal) and the alias-removal release (`subject` only). A write reads the status first, every time, and asserts the subject as `asserted_subject` when the status answered `subject`, else as `asserted_person`: a daemon that answers `subject` reads `asserted_subject`, and one from before 270a refuses it as an unknown field. A status naming neither refuses the write, as before |
 
 Added at the first code commit, 2026-10-11, made without Matt (he asked for sensible calls, noted):
 
@@ -32,7 +33,7 @@ Added at the first code commit, 2026-10-11, made without Matt (he asked for sens
 | Payloads at the boundary | Payloads and Definitions travel as decoded JSON (`any`), not raw bytes: the SDK infers an output schema from the Go type, and raw bytes would be described as a base64 string. The daemon's bytes are not re-encoded on the way |
 | Deadline | `ANAM_MCP_TIMEOUT`, default 30s, sent to the daemon as `Anam-Timeout` so it answers before the adapter gives up. The adapter waits `ANAM_MCP_NETWORK_MARGIN` (default 5s) beyond it for the answer to travel. The MCP request's cancellation is carried into the call |
 | Fields and the frame (2026-10-12, anam card 138) | `read_record` takes `fields`, JSON pointers the model copies out of `describe_type`'s schema, and answers `frame` (columns, rows) with `evidence` empty, rather than reshaping the frame into entries: the daemon's shape is the one the receipt hashes, and a frame reads straight into a DataFrame. Cells are decoded like payloads, for the SDK's output schema. The adapter checks only that a field starts with `/`; the daemon checks it against the schema |
-| Tests without a daemon | `ANAM_BIN` names the anam binary; `scripts/check.sh` builds one from `../anam` when unset. A plain `go test` without it skips the daemon tests and says so, rather than failing a checkout that has no Anam beside it |
+| Tests without a daemon | `ANAM_BIN` names the anam binary; `scripts/check.sh` builds one from `../anam` when unset. `ANAM_CATALOG` names the catalog the daemon runs on, since the binary carries none (anam card 255). A plain `go test` without either skips the daemon tests and says so, rather than failing a checkout that has no Anam beside it; `scripts/check.sh` without a binary or a catalog fails, so the gate cannot pass on skipped tests |
 | Tool list caching | The SDK (v1.8.0) answers `tools/list` with `ttlMs: 0`, `cacheScope: public` and offers no setting for them. The long private TTL in §2 waits on the SDK |
 | Paged reads (2026-10-21, anam cards 92 and 190) | A published read over the daemon's `max_read_bytes` answers its first page. `read_record` passes the daemon's `page` through and adds `page_notice`, a sentence that says the answer is partial, which facts it holds of how many, and the call that reads the next page, so a model that skims the numbers still reads the words. The next page is a new tool, `read_receipt` (`receipt_hash`, `cursor`), not a cursor on `read_record`: a cursor reads a filed artifact, never a new read, and `read_record`'s other arguments would mean nothing beside it. It keys on the receipt hash as `verify_receipt` does, and without a cursor it reads a receipt's first page, which the resource also shows but which a model cannot always reach. It is the `read_page` of §2's table under the name of what it reads. A 400 `cursor_invalid` and a 413 naming one facet are explained in the tool's error: what to pass instead, or the cursor that skips the facet. An unpublished read is still refused whole, and the refusal says a projection would page it |
 | Receipt URIs | `anam://receipts/{+hash}`: a hash is `sha256:<hex>`, and the reserved expansion is what lets the colon match |
@@ -123,8 +124,8 @@ facet yet. It guesses neither type nor time: the type is fixed, the time is the 
 or, for words the person relays from earlier, the moment they say they said them (`at`, card 162),
 never in the future, written in the layout and zone the Definition declares. Its id is the moment
 and the words hashed,
-so a retry is a no-op, and a correction names the id and is a new version. It sends
-`asserted_person`, as `save_fact` does, so a note binds to the person as firmly as a fact. It is
+so a retry is a no-op, and a correction names the id and is a new version. It asserts
+the record's subject, as `save_fact` does, so a note binds to the subject as firmly as a fact. It is
 offered only with `ANAM_MCP_NOTE_TOKEN_FILE`, so a deployment that sets no write token stays
 read-only. A model's
 reading of the words, as draft facts the person endorses, comes later under its own source
@@ -136,8 +137,8 @@ same `conversation` token, which the daemon scopes with `any_type`: it submits e
 owns no Definition. The tool fetches the type's Definition, names a required field that is
 missing and a fact-time that does not parse before the daemon sees the payload, and otherwise
 lets the gate validate; the Definition composes the identity, so the same fact again is a no-op
-and changed fields are a new version. It sends `asserted_person`, so the gate binds the fact to
-the person with high assurance. A type whose fact time reads the offset from the fact gets a
+and changed fields are a new version. It asserts the record's subject, so the gate binds the fact
+to the subject with high assurance. A type whose fact time reads the offset from the fact gets a
 `source_time` with the person's zone and that offset (anam card 198). A type whose Definition in
 force requires `source_time` and reads its fact time in its own zone (a visit, a lab result, a
 blood pressure reading; anam card 247) gets `{value, zone, basis}` with the wall clock as said, the

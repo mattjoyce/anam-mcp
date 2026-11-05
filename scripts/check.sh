@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # Pre-merge quality gate, the anam repo's with one addition: the tests run against a
 # real anam daemon, so ANAM_BIN must name an anam binary. Unset, it is built from the
-# sibling checkout at ../anam (or $ANAM_SRC) into a scratch directory.
+# sibling checkout at ../anam (or $ANAM_SRC) into a scratch directory. The binary
+# carries no catalog (anam card 255), so ANAM_CATALOG must name one: a directory
+# holding definitions/ and projections/ with the types the tests write. Without a
+# binary or a catalog the gate fails; it never passes on skipped daemon tests.
 set -uo pipefail
 
 fail=0
@@ -52,11 +55,20 @@ if [ -z "$bin" ]; then
       fail=1
     fi
   else
-    echo "ANAM_BIN unset and no anam checkout at $src: daemon tests will be skipped" >&2
+    echo "  FAILED: ANAM_BIN unset and no anam checkout at $src: set ANAM_BIN or ANAM_SRC" >&2
+    fail=1
   fi
 fi
+# Without a binary and a catalog the daemon tests skip, and a gate that passed on
+# skipped tests would have tested nothing, so the gate refuses. A plain go test
+# still skips them and says so.
+catalog="${ANAM_CATALOG:-}"
+if [ ! -d "$catalog/definitions" ]; then
+  echo "  FAILED: ANAM_CATALOG names no catalog with a definitions/ directory (got '$catalog')" >&2
+  fail=1
+fi
 for v in $(compgen -e | grep '^ANAM_' || true); do unset "$v"; done
-export ANAM_BIN="$bin"
+export ANAM_BIN="$bin" ANAM_CATALOG="$catalog"
 run go test -race -count=1 -shuffle=on -vet=all ./...
 
 if [ "$fail" -ne 0 ]; then echo "CHECK FAILED"; exit 1; fi

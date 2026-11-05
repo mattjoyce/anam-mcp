@@ -36,15 +36,22 @@ func startNotes(t *testing.T) (*Daemon, *mcp.ClientSession) {
 func startNotesIn(t *testing.T, zone string) (*Daemon, *mcp.ClientSession) {
 	t.Helper()
 	d := startDaemon(t, noteSource, nil)
+	return d, notesSession(t, d, d.URL, zone)
+}
+
+// notesSession connects an adapter that saves notes and facts through d's importer
+// token to the daemon at url, d's own or a server in front of it, in zone.
+func notesSession(t *testing.T, d *Daemon, url, zone string) *mcp.ClientSession {
+	t.Helper()
 	noteToken := filepath.Join(t.TempDir(), "note-token")
 	if err := os.WriteFile(noteToken, []byte(d.importerToken+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	client, err := anam.New(d.URL, d.TokenFile, 10*time.Second, 5*time.Second, 64<<20)
+	client, err := anam.New(url, d.TokenFile, 10*time.Second, 5*time.Second, 64<<20)
 	if err != nil {
 		t.Fatal(err)
 	}
-	notes, err := anam.New(d.URL, noteToken, 10*time.Second, 5*time.Second, 64<<20)
+	notes, err := anam.New(url, noteToken, 10*time.Second, 5*time.Second, 64<<20)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,7 +61,7 @@ func startNotesIn(t *testing.T, zone string) (*Daemon, *mcp.ClientSession) {
 		t.Fatal(err)
 	}
 	server := adapter.New(client, loc, now, "test").WithNotes(notes).Server()
-	return d, session(t, server)
+	return session(t, server)
 }
 
 // session connects a client to server over in-memory transports.

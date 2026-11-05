@@ -14,7 +14,7 @@ Status: six reading tools and one resource, over what the daemon serves today; t
 
 | Tool | What it does | What it publishes |
 |---|---|---|
-| `describe_record` | Whose record, ledger identity and watermark, time and zone, source freshness, every admitted type, each type's count, fact-time range and sources at the watermark, every projection a read may go through, the operator's default projection to read first when one is set, what the server can and cannot do | Nothing |
+| `describe_record` | What the record is about (its subject), ledger identity and watermark, time and zone, source freshness, every admitted type, each type's count, fact-time range and sources at the watermark, every projection a read may go through, the operator's default projection to read first when one is set, what the server can and cannot do | Nothing |
 | `describe_type` | One type's Definition as published: JSON Schema with field descriptions, time semantics, identity, and the handling guidance every writer of the type agrees on | Nothing |
 | `read_record` | The timeline (narrowed by `from`, `to`, `type`) or a snapshot at a fact-time; `as_of` or `watermark` pin the knowledge; `fields` (JSON pointers) answers a frame of only those columns; a published read too large for one answer comes as its first page, with `page` and a `page_notice` that says it is partial | With a `projection`, an immutable artifact and its receipt; without one, nothing, and the answer says so |
 | `describe_query` | What a query program is written against: the syntax (aggregates included), the base relations (`month_of/2` and `day_of/2` among them) and the `instant/1` parameter, the exact fact-time lexeme, each type's payload pointers at each Definition version, and the bundled rules (`current/2`, `displaced/2`) with their hash and text | Nothing |
@@ -99,16 +99,20 @@ bypasses Access reaches nothing. Leave `ANAM_MCP_NOTE_TOKEN_FILE` unset to serve
 ./scripts/check.sh
 ```
 
-The tests run a real `anam daemon` on a scratch ledger, so they need an `anam` binary. Get one
-from the public anam repo:
+The tests run a real `anam daemon` on a scratch ledger, so they need an `anam` binary and a
+catalog for it to run on. Get the binary from the public anam repo:
 
 ```sh
 go install github.com/mattjoyce/anam/cmd/anam@latest
-ANAM_BIN="$(go env GOPATH)/bin/anam" ./scripts/check.sh
+ANAM_BIN="$(go env GOPATH)/bin/anam" ANAM_CATALOG=/path/to/catalog ./scripts/check.sh
 ```
 
 `ANAM_BIN` names the binary; unset, `scripts/check.sh` builds one from a sibling checkout at
-`../anam` (or `ANAM_SRC`). Without either, the tests that need a daemon are skipped and say so.
+`../anam` (or `ANAM_SRC`). `ANAM_CATALOG` names a catalog directory, `definitions/` and
+`projections/` as a deployment's catalog repository holds them, with the types the tests write
+(`health.blood-pressure`, `health.weight`, `record.edge`) and the `bp` projection: the anam
+binary carries no catalog of its own. A plain `go test` without either skips the tests that
+need a daemon and says so; `scripts/check.sh` without a binary or a catalog fails.
 A secrets scan of the history runs as a tool, not a dependency, with the repo's own allowlist
 for the README's token-file examples:
 
