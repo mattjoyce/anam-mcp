@@ -3,7 +3,8 @@
 # real anam daemon, so ANAM_BIN must name an anam binary. Unset, it is built from the
 # sibling checkout at ../anam (or $ANAM_SRC) into a scratch directory. The binary
 # carries no catalog (anam card 255), so ANAM_CATALOG must name one: a directory
-# holding definitions/ and projections/ with the types the tests write.
+# holding definitions/ and projections/ with the types the tests write. Without a
+# binary or a catalog the gate fails; it never passes on skipped daemon tests.
 set -uo pipefail
 
 fail=0
@@ -54,13 +55,15 @@ if [ -z "$bin" ]; then
       fail=1
     fi
   else
-    echo "ANAM_BIN unset and no anam checkout at $src: daemon tests will be skipped" >&2
+    echo "  FAILED: ANAM_BIN unset and no anam checkout at $src: set ANAM_BIN or ANAM_SRC" >&2
+    fail=1
   fi
 fi
-# A binary without a catalog fails every daemon test, and one skipped quietly would
-# pass a gate that tested nothing, so the gate refuses to run them half-configured.
+# Without a binary and a catalog the daemon tests skip, and a gate that passed on
+# skipped tests would have tested nothing, so the gate refuses. A plain go test
+# still skips them and says so.
 catalog="${ANAM_CATALOG:-}"
-if [ -n "$bin" ] && [ ! -d "$catalog/definitions" ]; then
+if [ ! -d "$catalog/definitions" ]; then
   echo "  FAILED: ANAM_CATALOG names no catalog with a definitions/ directory (got '$catalog')" >&2
   fail=1
 fi

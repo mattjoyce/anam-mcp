@@ -40,12 +40,27 @@ var (
 	unnamedWire    = wireShape{reads: []string{"asserted_subject", "asserted_person"}}
 )
 
-// shapedDaemon is a server in front of a real daemon that wears a wire shape, and
-// the asserted field each envelope sent through it carried.
+// shapedDaemon is a server in front of a real daemon that wears a wire shape, which
+// a test may change between calls as a deploy or a rollback would, and the asserted
+// field each envelope sent through it carried.
 type shapedDaemon struct {
 	URL      string
 	mu       sync.Mutex
+	wire     wireShape
 	asserted []string
+}
+
+// wear makes w the shape every later request sees.
+func (s *shapedDaemon) wear(w wireShape) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.wire = w
+}
+
+func (s *shapedDaemon) shape() wireShape {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.wire
 }
 
 func (s *shapedDaemon) sent() []string {
@@ -54,7 +69,7 @@ func (s *shapedDaemon) sent() []string {
 	return slices.Clone(s.asserted)
 }
 
-// shape puts w on d. A status is rewritten to answer the subject under w's names
+// shape puts w on d, until the test makes it wear another. A status is rewritten to answer the subject under w's names
 // only. An envelope's asserted field is recorded, refused when w does not read it,
 // and otherwise passed on under the name d itself reads, so the gate behind still
 // binds the fact.
@@ -69,8 +84,9 @@ func shape(t *testing.T, d *Daemon, w wireShape) *shapedDaemon {
 	if _, ok := d.status(t)["subject"]; ok {
 		upstream = "asserted_subject"
 	}
-	s := &shapedDaemon{}
+	s := &shapedDaemon{wire: w}
 	srv := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		w := s.shape()
 		switch {
 		case r.Method == http.MethodGet && r.URL.Path == "/v1/status":
 			rec := httptest.NewRecorder()
@@ -234,5 +250,43 @@ func TestSubject_NoneNamedSavesNothing(t *testing.T) {
 	}
 	if got := sd.sent(); len(got) != 0 {
 		t.Errorf("envelopes sent = %v, want none", got)
+	}
+}
+
+// The daemon behind the adapter can change between two writes in one session: the
+// 270a deploy, its rollback to the image before it, and later the alias-removal
+// release. Each write reads the status afresh and asserts the subject under the
+// name that status gave, so no write carries a field the daemon it reaches refuses.
+func TestSubject_EachWriteReadsTheStatusAfresh(t *testing.T) {
+	d := startDaemon(t, noteSource, nil)
+	sd := shape(t, d, transitionWire)
+	cs := notesSession(t, d, sd.URL, "Australia/Sydney")
+	ctx := context.Background()
+	steps := []struct {
+		name string
+		wire wireShape
+		want string
+	}{
+		{"the 270a daemon", transitionWire, "asserted_subject"},
+		{"rolled back to the image before 270a", rollbackWire, "asserted_person"},
+		{"the alias-removal release", removalWire, "asserted_subject"},
+		{"rolled back again", rollbackWire, "asserted_person"},
+	}
+	var want []string
+	for i, step := range steps {
+		sd.wear(step.wire)
+		var note adapter.SaveNoteOutput
+		if err := call(ctx, cs, "save_note", map[string]any{"text": fmt.Sprintf("Note %d, on %s.", i, step.name)}, &note); err != nil {
+			t.Fatalf("%s: save_note: %v", step.name, err)
+		}
+		var fact adapter.SaveFactOutput
+		payload := map[string]any{"id": fmt.Sprintf("conversation:weight/%d", i), "date": "2026-07-01 12:00", "kg": 80.0 + float64(i)}
+		if err := call(ctx, cs, "save_fact", map[string]any{"type": weightType, "payload": payload}, &fact); err != nil {
+			t.Fatalf("%s: save_fact: %v", step.name, err)
+		}
+		want = append(want, step.want, step.want)
+		if got := sd.sent(); !slices.Equal(got, want) {
+			t.Fatalf("%s: asserted fields sent = %v, want %v", step.name, got, want)
+		}
 	}
 }

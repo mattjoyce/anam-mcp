@@ -112,7 +112,7 @@ ANAM_BIN="$(go env GOPATH)/bin/anam" ANAM_CATALOG=/path/to/catalog ./scripts/che
 `projections/` as a deployment's catalog repository holds them, with the types the tests write
 (`health.blood-pressure`, `health.weight`, `record.edge`) and the `bp` projection: the anam
 binary carries no catalog of its own. A plain `go test` without either skips the tests that
-need a daemon and says so; `scripts/check.sh` with a binary and no catalog fails.
+need a daemon and says so; `scripts/check.sh` without a binary or a catalog fails.
 A secrets scan of the history runs as a tool, not a dependency, with the repo's own allowlist
 for the README's token-file examples:
 
