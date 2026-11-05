@@ -24,6 +24,9 @@ import (
 	"time"
 )
 
+// subjectID is the record's subject in every test daemon.
+const subjectID = "subject-a"
+
 // EnvBin names the anam binary the tests run.
 const EnvBin = "ANAM_BIN"
 
@@ -79,7 +82,11 @@ func startDaemon(t *testing.T, source string, types []string, env ...string) *Da
 	port := freePort(t)
 	d.URL = fmt.Sprintf("http://127.0.0.1:%d", port)
 	env = append([]string{"PATH=" + os.Getenv("PATH"), "HOME=" + dir,
-		"ANAM_PERSON_ID=person-a",
+		// The record's subject (anam card 270a). ANAM_PERSON_ID, its old name, says
+		// the same for a binary from before 270a, the rollback image among them; one
+		// from after reads both, equal, with an INFO.
+		"ANAM_SUBJECT_ID=" + subjectID,
+		"ANAM_PERSON_ID=" + subjectID,
 		"ANAM_LEDGER_PATH=" + filepath.Join(dir, "ledger.db"),
 		"ANAM_DB_PATH=" + filepath.Join(dir, "tracking.db"),
 		"ANAM_ARTIFACT_DIR=" + filepath.Join(dir, "artifacts"),

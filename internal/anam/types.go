@@ -13,7 +13,11 @@ import (
 
 // Status is the answer to GET /v1/status.
 type Status struct {
-	Version  string         `json:"version"`
+	Version string `json:"version"`
+	// Subject is who or what the record is about (anam card 270a). Person is its
+	// old name: a daemon from before 270a answers only Person, the 270a daemon
+	// both with the same value, and the alias-removal release only Subject.
+	Subject  string         `json:"subject"`
 	Person   string         `json:"person"`
 	LedgerID string         `json:"ledger_id"`
 	W        int64          `json:"w"`
@@ -498,13 +502,16 @@ type refusal struct {
 
 // Envelope is one fact offered to the gate: its type, the Definition version the
 // payload is shaped to (the type's current one), and the payload. The source is the
-// token's, never a field. AssertedPerson, set to the record's person, says the
-// source scopes the fact to them explicitly, which the gate binds with high
-// assurance (anam card 177).
+// token's, never a field. AssertedSubject, set to the record's subject, says the
+// source scopes the fact to it explicitly, which the gate binds with high
+// assurance (anam card 177). AssertedPerson is its old name (anam card 270a): a
+// daemon from before 270a reads only it and refuses asserted_subject, so an
+// envelope sets the one the daemon's status names, never both.
 type Envelope struct {
 	Type              string `json:"type"`
 	DefinitionVersion int    `json:"definition_version"`
 	Payload           any    `json:"payload"`
+	AssertedSubject   string `json:"asserted_subject,omitempty"`
 	AssertedPerson    string `json:"asserted_person,omitempty"`
 }
 

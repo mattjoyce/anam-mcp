@@ -123,11 +123,11 @@ func (a *Adapter) saveNote(ctx context.Context, _ *mcp.CallToolRequest, in SaveN
 	if len(in.About) > 0 {
 		payload["to"] = in.About
 	}
-	person, err := a.assertedPerson(ctx, "save_note")
-	if err != nil {
+	env := anam.Envelope{Type: noteType, DefinitionVersion: d.Meta.DefinitionVersion, Payload: payload}
+	if err := a.assertSubject(ctx, "save_note", &env); err != nil {
 		return nil, SaveNoteOutput{}, err
 	}
-	s, err := a.notes.Submit(ctx, []anam.Envelope{{Type: noteType, DefinitionVersion: d.Meta.DefinitionVersion, Payload: payload, AssertedPerson: person}})
+	s, err := a.notes.Submit(ctx, []anam.Envelope{env})
 	if err != nil {
 		// The note may have landed before the answer was lost. A retry made a minute
 		// later would hash to another id and be a second note, so the error names the

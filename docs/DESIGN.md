@@ -22,6 +22,7 @@ Recorded at the first commit, 2026-10-10.
 | Server and token | `ANAM_SERVER` and `ANAM_TOKEN_FILE`, the same variables the `anam` CLI reads. The token is read from the file at start and never logged or echoed in a tool result |
 | Zone | `ANAM_ZONE`, an IANA name. The daemon refuses `Local`, so the adapter resolves the zone before it starts and fails if it cannot |
 | State | None worth recovering. A restart loses nothing; durable work lives in Anam |
+| The record's subject (2026-11-06, anam card 270a) | Anam renamed the record's person to its subject. `describe_record` answers `subject`, with no transition field, since no program reads the tool's answer. The adapter reads the status's `subject` and falls back to `person`, so it works against a daemon from before 270a (the rollback image answers only `person`), the 270a daemon (both, equal) and the alias-removal release (`subject` only). A write reads the status first, every time, and asserts the subject as `asserted_subject` when the status answered `subject`, else as `asserted_person`: a daemon that answers `subject` reads `asserted_subject`, and one from before 270a refuses it as an unknown field. A status naming neither refuses the write, as before |
 
 Added at the first code commit, 2026-10-11, made without Matt (he asked for sensible calls, noted):
 
@@ -123,8 +124,8 @@ facet yet. It guesses neither type nor time: the type is fixed, the time is the 
 or, for words the person relays from earlier, the moment they say they said them (`at`, card 162),
 never in the future, written in the layout and zone the Definition declares. Its id is the moment
 and the words hashed,
-so a retry is a no-op, and a correction names the id and is a new version. It sends
-`asserted_person`, as `save_fact` does, so a note binds to the person as firmly as a fact. It is
+so a retry is a no-op, and a correction names the id and is a new version. It asserts
+the record's subject, as `save_fact` does, so a note binds to the subject as firmly as a fact. It is
 offered only with `ANAM_MCP_NOTE_TOKEN_FILE`, so a deployment that sets no write token stays
 read-only. A model's
 reading of the words, as draft facts the person endorses, comes later under its own source
@@ -136,8 +137,8 @@ same `conversation` token, which the daemon scopes with `any_type`: it submits e
 owns no Definition. The tool fetches the type's Definition, names a required field that is
 missing and a fact-time that does not parse before the daemon sees the payload, and otherwise
 lets the gate validate; the Definition composes the identity, so the same fact again is a no-op
-and changed fields are a new version. It sends `asserted_person`, so the gate binds the fact to
-the person with high assurance. A type whose fact time reads the offset from the fact gets a
+and changed fields are a new version. It asserts the record's subject, so the gate binds the fact
+to the subject with high assurance. A type whose fact time reads the offset from the fact gets a
 `source_time` with the person's zone and that offset (anam card 198). A type whose Definition in
 force requires `source_time` and reads its fact time in its own zone (a visit, a lab result, a
 blood pressure reading; anam card 247) gets `{value, zone, basis}` with the wall clock as said, the

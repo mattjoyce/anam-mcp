@@ -147,7 +147,7 @@ func TestDescribeRecord(t *testing.T) {
 	if err := call(context.Background(), h.session, "describe_record", nil, &d); err != nil {
 		t.Fatal(err)
 	}
-	if d.Person != "person-a" || d.LedgerID == "" || d.Watermark == 0 {
+	if d.Subject != subjectID || d.LedgerID == "" || d.Watermark == 0 {
 		t.Errorf("description = %+v", d)
 	}
 	if d.Zone != "UTC" || d.Now != "2026-07-01T00:00:00Z" {
