@@ -109,6 +109,12 @@ ANAM_BIN="$(go env GOPATH)/bin/anam" ./scripts/check.sh
 
 `ANAM_BIN` names the binary; unset, `scripts/check.sh` builds one from a sibling checkout at
 `../anam` (or `ANAM_SRC`). Without either, the tests that need a daemon are skipped and say so.
+
+The engine carries no catalog of Definitions (anam card 255), so the scratch daemons need one
+from a deployment repository: `ANAM_CATALOG` names its root, whose `definitions/` and
+`projections/` they read. The tests use the types of a personal record (`record.edge`,
+`health.blood-pressure` and others), so the catalog must hold them. Without `ANAM_CATALOG`,
+`scripts/check.sh` fails.
 A secrets scan of the history runs as a tool, not a dependency, with the repo's own allowlist
 for the README's token-file examples:
 

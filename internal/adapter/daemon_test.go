@@ -1,6 +1,6 @@
 // A real anam daemon for the adapter's tests: a new ledger
 // under the test's own directory, an operator token, one importer that may submit
-// the types a test needs. ANAM_BIN names the anam binary; without it the tests that
+// the types a test needs, and one reader, which may read and write nothing. ANAM_BIN names the anam binary; without it the tests that
 // need a daemon are skipped, and scripts/check.sh sets it.
 package adapter_test
 
@@ -26,6 +26,15 @@ import (
 // EnvBin names the anam binary the tests run.
 const EnvBin = "ANAM_BIN"
 
+// catalogEnv names the deployment catalog a scratch daemon reads its Definitions and
+// projection templates from. The engine carries no catalog (anam card 255), so the
+// tests take one the way a deployment gives it; scripts/check.sh sets both from
+// ANAM_CATALOG.
+var catalogEnv = []string{"ANAM_DEFINITIONS_DIR", "ANAM_PROJECTIONS_DIR"}
+
+// readerName is the reader principal every scratch daemon holds.
+const readerName = "reader-a"
+
 // Daemon is one running anam daemon on a scratch ledger.
 type Daemon struct {
 	// URL is the daemon's base URL and TokenFile the operator token's path: what the
@@ -36,8 +45,10 @@ type Daemon struct {
 	// what it presents.
 	Source        string
 	importerToken string
-	cmd           *exec.Cmd
-	stderr        bytes.Buffer
+	// readerToken is the reader principal's: every read, no write.
+	readerToken string
+	cmd         *exec.Cmd
+	stderr      bytes.Buffer
 }
 
 // Start runs a daemon for t that admits types from source, or every type when
@@ -51,7 +62,7 @@ func startDaemon(t *testing.T, source string, types []string, env ...string) *Da
 		t.Skipf("%s names no anam binary; scripts/check.sh sets it", EnvBin)
 	}
 	dir := t.TempDir()
-	d := &Daemon{Source: source, TokenFile: filepath.Join(dir, "token"), importerToken: random(32)}
+	d := &Daemon{Source: source, TokenFile: filepath.Join(dir, "token"), importerToken: random(32), readerToken: random(32)}
 	if err := os.WriteFile(d.TokenFile, []byte(random(24)+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -60,8 +71,10 @@ func startDaemon(t *testing.T, source string, types []string, env ...string) *Da
 	if len(types) > 0 {
 		scope = "types: [" + strings.Join(types, ", ") + "]"
 	}
-	importers := fmt.Sprintf("importers:\n  - source: %s\n    token_sha256: %s\n    %s\n",
-		source, hex.EncodeToString(sum[:]), scope)
+	reader := sha256.Sum256([]byte(d.readerToken))
+	importers := fmt.Sprintf("importers:\n  - source: %s\n    token_sha256: %s\n    %s\n"+
+		"principals:\n  - name: %s\n    role: reader\n    token_sha256: %s\n",
+		source, hex.EncodeToString(sum[:]), scope, readerName, hex.EncodeToString(reader[:]))
 	if err := os.WriteFile(filepath.Join(dir, "importers.yaml"), []byte(importers), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -77,6 +90,11 @@ func startDaemon(t *testing.T, source string, types []string, env ...string) *Da
 		"ANAM_IMPORTERS_FILE=" + filepath.Join(dir, "importers.yaml"),
 		"ANAM_ZONE=UTC",
 	}, env...)
+	for _, k := range catalogEnv {
+		if v := os.Getenv(k); v != "" {
+			env = append(env, k+"="+v)
+		}
+	}
 	initCmd := exec.CommandContext(context.Background(), bin, "init") // #nosec G204 -- the test names the binary.
 	initCmd.Env = env
 	if out, err := initCmd.CombinedOutput(); err != nil {

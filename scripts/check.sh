@@ -37,8 +37,15 @@ if command -v golangci-lint >/dev/null 2>&1; then run golangci-lint run ./...; e
 if command -v gosec >/dev/null 2>&1; then run gosec -severity medium -quiet ./...; else echo "gosec not installed — skipping"; fi
 
 # A real daemon for the tests. The developer's own ANAM_ settings must not steer a
-# test toward a live daemon, so every ANAM_ variable but the binary is dropped.
+# test toward a live daemon, so every ANAM_ variable but the binary and the catalog
+# is dropped. The engine carries no catalog (anam card 255): ANAM_CATALOG names a
+# deployment repository whose definitions/ and projections/ the scratch daemons read.
 bin="${ANAM_BIN:-}"
+catalog="${ANAM_CATALOG:-}"
+if [ -z "$catalog" ] || [ ! -d "$catalog/definitions" ]; then
+  echo "ANAM_CATALOG names no deployment catalog: daemons start with no Definitions and the daemon tests fail" >&2
+  fail=1
+fi
 if [ -z "$bin" ]; then
   src="${ANAM_SRC:-../anam}"
   if [ -d "$src/cmd/anam" ]; then
@@ -57,6 +64,9 @@ if [ -z "$bin" ]; then
 fi
 for v in $(compgen -e | grep '^ANAM_' || true); do unset "$v"; done
 export ANAM_BIN="$bin"
+if [ -n "$catalog" ]; then
+  export ANAM_DEFINITIONS_DIR="$catalog/definitions" ANAM_PROJECTIONS_DIR="$catalog/projections"
+fi
 run go test -race -count=1 -shuffle=on -vet=all ./...
 
 if [ "$fail" -ne 0 ]; then echo "CHECK FAILED"; exit 1; fi
