@@ -240,6 +240,48 @@ func TestSaveNote_Refusals(t *testing.T) {
 	}
 }
 
+// A write the daemon's policy refuses reads as final: the tool says the record's
+// policy refused it, quotes the daemon's reason, and tells the model not to retry.
+// The adapter holds no policy; a reader's token in the note token's place is
+// enough for the daemon to refuse every write.
+func TestSaveNote_RefusedByPolicy(t *testing.T) {
+	d := startDaemon(t, noteSource, nil)
+	readerToken := filepath.Join(t.TempDir(), "reader-token")
+	if err := os.WriteFile(readerToken, []byte(d.readerToken+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	client, err := anam.New(d.URL, readerToken, 10*time.Second, 5*time.Second, 64<<20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := func() time.Time { return time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC) }
+	cs := session(t, adapter.New(client, time.UTC, now, "test").WithNotes(client).Server())
+	ctx := context.Background()
+	for tool, args := range map[string]map[string]any{
+		"save_note": {"text": "I took 5 mg of melatonin"},
+		"save_fact": {"type": noteType, "payload": map[string]any{"id": "conversation:0011223344556677", "at": noteAt, "text": "x"}},
+	} {
+		err := call(ctx, cs, tool, args, nil)
+		if err == nil {
+			t.Fatalf("%s by a reader: no error", tool)
+		}
+		for _, w := range []string{tool + ": the record's policy refused this", readerName + " holds role reader", "Do not retry"} {
+			if !strings.Contains(err.Error(), w) {
+				t.Errorf("%s: %q lacks %q", tool, err, w)
+			}
+		}
+		// The hints for a lost answer invite a retry, which a rule does not want.
+		for _, w := range []string{"to retry", "the same call again"} {
+			if strings.Contains(err.Error(), w) {
+				t.Errorf("%s: %q says %q", tool, err, w)
+			}
+		}
+	}
+	if got := notesOn(t, cs); len(got) != 0 {
+		t.Errorf("%d notes written by refused calls", len(got))
+	}
+}
+
 // save_note is offered, and described, only when the adapter has the note token.
 func TestSaveNote_OfferedOnlyWithItsToken(t *testing.T) {
 	_, cs := startNotes(t)

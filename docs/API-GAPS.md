@@ -25,6 +25,7 @@ check.
 | One facet by reference | No route returns a facet version by id with its provenance | `get_evidence` | 91 |
 | Paging over a published result (`ReadPage`, API §5) | Reads are whole | `read_page`, once reads are receipted | 92 |
 | The assertion lifecycle (API §6, stage 2 in API §10) | ~~No write route for a reader~~ `save_fact` (anam card 177) logs a fact of any type under the `conversation` token, validated by the gate and corrected by resending the same identity. Still no dry-run validation and no submission lookup | `validate_assertion`, `get_submission` | 93, 177 |
+| A refusal that says it is final | API §3 promises `code` and `retryable` on every failure; no route sends `retryable`, and a refusal by policy carries no code. The adapter treats any 403 as the record's rule and says so (card 267), but a type outside an importer's scope is refused inside a 422 batch, beside validation failures the caller can fix, and reads as one of them | A write refused by scope worded as final, as a 403 is | 274 |
 
 Not gaps: snapshots (`at`, latest per series, closed series gone), bitemporal reads (`as_of`
 with `at`), projections by name, `explain=true` verdicts, Definitions with field descriptions,

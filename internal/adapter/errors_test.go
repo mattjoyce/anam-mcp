@@ -13,8 +13,8 @@ import (
 )
 
 // TestFailed checks the words a tool fails with: the server named when it did not
-// answer, the narrowings offered when a read was too large, the daemon's own words
-// otherwise.
+// answer, the narrowings offered when a read was too large, a refusal by the
+// record's policy said to be final, the daemon's own words otherwise.
 func TestFailed(t *testing.T) {
 	client, err := anam.New("http://127.0.0.1:1", "", time.Second, time.Second, 64<<20)
 	if err != nil {
@@ -25,24 +25,28 @@ func TestFailed(t *testing.T) {
 		name string
 		err  error
 		want []string
+		lack []string
 	}{
 		{"unreachable", fmt.Errorf("%w: http://127.0.0.1:1: connection refused", anam.ErrUnreachable),
-			[]string{"read_record:", "http://127.0.0.1:1", "did not answer"}},
-		{"deadline", context.DeadlineExceeded, []string{"read_record:", "deadline exceeded"}},
+			[]string{"read_record:", "http://127.0.0.1:1", "did not answer"}, nil},
+		{"deadline", context.DeadlineExceeded, []string{"read_record:", "deadline exceeded"}, nil},
 		{"too large", &anam.Error{Status: 413, Code: anam.CodeTooLarge, Message: "too big",
 			TooLarge: &anam.TooLarge{Matched: 9000, Bytes: 2000000, MaxBytes: 1000000, Narrow: []string{"type", "from"}}},
-			[]string{"9000 entries", "2000000 bytes", "1000000", "narrow the read by type, from"}},
+			[]string{"9000 entries", "2000000 bytes", "1000000", "narrow the read by type, from"}, nil},
 		{"one facet on a page", &anam.Error{Status: 413, Code: anam.CodeTooLarge, Message: "too big",
 			TooLarge: &anam.TooLarge{Matched: 1, Bytes: 3000, MaxBytes: 2500, FacetID: "f-1", NextCursor: "c-2"}},
-			[]string{"facet f-1", "bound of 2500 bytes", "no page can carry it", "read_receipt", "cursor c-2"}},
+			[]string{"facet f-1", "bound of 2500 bytes", "no page can carry it", "read_receipt", "cursor c-2"}, nil},
 		{"one facet in a publish", &anam.Error{Status: 413, Code: anam.CodeTooLarge, Message: "too big",
 			TooLarge: &anam.TooLarge{Matched: 1, Bytes: 3000, MaxBytes: 2500, FacetID: "f-1", Narrow: []string{"from"}}},
-			[]string{"facet f-1", "nothing was published", "Name fields", "narrow the read past it by from"}},
+			[]string{"facet f-1", "nothing was published", "Name fields", "narrow the read past it by from"}, nil},
 		{"cursor invalid", &anam.Error{Status: 400, Code: anam.CodeCursorInvalid, Message: "cursor invalid: offset 3 is outside the receipt's 2 facets"},
-			[]string{"not one this receipt issued", "offset 3 is outside", "next_cursor unchanged", "omit cursor"}},
+			[]string{"not one this receipt issued", "offset 3 is outside", "next_cursor unchanged", "omit cursor"}, nil},
+		{"refused by policy", &anam.Error{Status: 403, Message: "reader-a holds role reader, and POST /v1/envelopes admits importer"},
+			[]string{"read_record: the record's policy refused this", "reader-a holds role reader, and POST /v1/envelopes admits importer",
+				"not a fault", "Do not retry", "reword", "tell the person"}, nil},
 		{"daemon's words", &anam.Error{Status: 400, Message: "zone Local names the daemon's zone"},
-			[]string{"read_record: zone Local names the daemon's zone"}},
-		{"other", errors.New("boom"), []string{"read_record: boom"}},
+			[]string{"read_record: zone Local names the daemon's zone"}, []string{"policy", "Do not retry"}},
+		{"other", errors.New("boom"), []string{"read_record: boom"}, []string{"policy"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -50,6 +54,11 @@ func TestFailed(t *testing.T) {
 			for _, w := range c.want {
 				if !strings.Contains(got, w) {
 					t.Errorf("%q lacks %q", got, w)
+				}
+			}
+			for _, w := range c.lack {
+				if strings.Contains(got, w) {
+					t.Errorf("%q says %q", got, w)
 				}
 			}
 		})

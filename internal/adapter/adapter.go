@@ -8,6 +8,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -106,11 +107,26 @@ func (a *Adapter) assertedPerson(ctx context.Context, what string) (string, erro
 	return st.Person, nil
 }
 
+// refusedByPolicy reports whether the daemon refused a call by its policy: a 403.
+// The adapter holds no policy of its own (anam card 267); the daemon decides what
+// its token may do. The daemon also answers 403 to a browser on another site, and
+// the adapter is never one, so a 403 to it is always the record's rule.
+func refusedByPolicy(err error) bool {
+	var ae *anam.Error
+	return errors.As(err, &ae) && ae.Status == http.StatusForbidden
+}
+
 // failed turns a daemon error into the error a tool answers with. The daemon that
-// could not be reached is named; a read refused for its size says how to narrow it.
+// could not be reached is named; a read refused for its size says how to narrow it;
+// a refusal by the record's policy says it is final, so the model stops and tells
+// the person rather than retrying.
 func (a *Adapter) failed(what string, err error) error {
 	var ae *anam.Error
 	switch {
+	case refusedByPolicy(err) && errors.As(err, &ae):
+		return fmt.Errorf("%s: the record's policy refused this: %s. This is a rule, not a fault. "+
+			"Do not retry the call, or reword it to get round the refusal; tell the person what was refused and why",
+			what, ae.Message)
 	case errors.Is(err, anam.ErrUnreachable):
 		return fmt.Errorf("%s: the Anam server at %s did not answer: %w", what, a.client.Server(), err)
 	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):

@@ -85,6 +85,9 @@ func (a *Adapter) saveFact(ctx context.Context, _ *mcp.CallToolRequest, in SaveF
 	}
 	env := anam.Envelope{Type: in.Type, DefinitionVersion: d.Meta.DefinitionVersion, Payload: in.Payload, AssertedPerson: person}
 	s, err := a.notes.Submit(ctx, []anam.Envelope{env})
+	if refusedByPolicy(err) {
+		return nil, SaveFactOutput{}, a.failed("save_fact", err)
+	}
 	if err != nil {
 		// The identity is the Definition's, from the fields, so the same call again
 		// is safe: a fact that landed before the answer was lost is a no-op.

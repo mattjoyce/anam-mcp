@@ -128,6 +128,9 @@ func (a *Adapter) saveNote(ctx context.Context, _ *mcp.CallToolRequest, in SaveN
 		return nil, SaveNoteOutput{}, err
 	}
 	s, err := a.notes.Submit(ctx, []anam.Envelope{{Type: noteType, DefinitionVersion: d.Meta.DefinitionVersion, Payload: payload, AssertedPerson: person}})
+	if refusedByPolicy(err) {
+		return nil, SaveNoteOutput{}, a.failed("save_note", err)
+	}
 	if err != nil {
 		// The note may have landed before the answer was lost. A retry made a minute
 		// later would hash to another id and be a second note, so the error names the
